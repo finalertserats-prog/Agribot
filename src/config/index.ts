@@ -108,6 +108,11 @@ export const config = {
     maxPerTenantPerDay: 5000, // per-tenant daily quota
     auditPath: path.join(env.DATA_DIR, "policy-audit.jsonl"),
   },
+  // Autonomy Engine (Phase C) — the scheduler/trigger loop that PROPOSES
+  // proactive candidates and routes them through the Policy Engine.
+  autonomy: {
+    schedulerIntervalMs: 60 * 60_000, // run triggers hourly
+  },
 } as const;
 
 export type Config = typeof config;

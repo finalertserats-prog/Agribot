@@ -55,7 +55,21 @@ Purpose-built, least-privilege ops daemon (NOT OpenClaw/Hermes — safer, fully 
   (log + optional webhook, no WhatsApp send), and the copilot daemon (`npm run ops`).
 - Monitors heartbeat → alerts (info/warn/critical) → self-heals via OPS_RESTART_COMMAND
   with a bounded restart budget → recovery alert. Live-smoke-tested end to end.
-- 95 tests, 85% coverage. Next autonomy phases (A/C/D/E) per Doc 7.
+
+## Autonomy — Phase A (Policy Engine) ✅ DONE (code side)
+`src/policy/`: deterministic gate — kill-switch → idempotency → consent → risk/approval
+→ approved-template → render → quiet-hours → farmer-cap → tenant-quota → allow, every
+decision audited; side effects commit only after confirmed delivery (commitSend).
+Consent (+ opt-out), template library (+ var sanitization), risk taxonomy, frequency/
+quiet-hours (farmer-local tz), idempotency. Operator task remaining: WhatsApp Business
+Platform account + Meta-approved templates.
+
+## Autonomy — Phase C (Proactive Engine) ✅ DONE
+`src/autonomy/`: triggers (seasonal/crop-stage/weather, with data-quality gates) →
+Policy Engine → LoggingTransport (stub; real WhatsApp Business Platform transport is a
+placeholder) → commitSend on success. Approval queue for high-risk, delivery-feedback
+anti-fatigue, scheduler (`npm run autonomy`). Live-demoed: correctly suppressed night-time
+sends via quiet hours. 134 tests, 83% coverage. Next: Phase D (APIs/calls), E (self-improve).
 
 ## To resume
 - Reopen decision: `node ~/.claude/scripts/disagreement.js --open`

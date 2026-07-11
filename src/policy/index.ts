@@ -24,7 +24,7 @@ export {
  * (consent, frequency, idempotency) are returned too so the Autonomy Engine can
  * feed them (e.g. record an opt-out) later in Phase C.
  */
-export function createPolicyEngine() {
+export function createPolicyEngine(opts: { tzOffsetFor?: (farmerId: string) => number } = {}) {
   const consent = new ConsentStore();
   const frequency = new FrequencyGuard(
     config.policy.maxPerFarmerPerDay,
@@ -37,6 +37,7 @@ export function createPolicyEngine() {
     frequency,
     idempotency,
     audit,
+    tzOffsetFor: opts.tzOffsetFor,
     config: {
       proactiveEnabled: config.policy.proactiveEnabled,
       quietHoursStart: config.policy.quietHoursStart,
