@@ -372,8 +372,64 @@ def d12_revenue():
     save(fig, "12_revenue_model.png")
 
 
+# ---------------------------------------------------------------------------
+# 13. Test coverage before / after
+# ---------------------------------------------------------------------------
+def d13_coverage():
+    import numpy as np
+    fig, ax = plt.subplots(figsize=(11, 6.5))
+    mods = ["handler.ts\n(message router)", "whatsapp.ts\n(reconnect)", "gemini.ts",
+            "memory.ts", "persist.ts", "OVERALL"]
+    before = [0, 0, 12, 21, 87, 38]
+    after = [75, 81, 65, 82, 100, 83]
+    y = np.arange(len(mods))
+    h = 0.38
+    ax.barh(y + h / 2, before, height=h, color=AMBER, label="Before (P0–P1)", edgecolor=INK)
+    ax.barh(y - h / 2, after, height=h, color=GREEN, label="After (Phase 2)", edgecolor=INK)
+    ax.set_yticks(y); ax.set_yticklabels(mods[::-1] and mods)
+    ax.invert_yaxis()
+    ax.set_xlim(0, 105); ax.set_xlabel("Line coverage (%)", fontsize=10, weight="bold")
+    ax.set_title("Test Coverage — Before vs After Phase 2", fontsize=14, weight="bold", color=INK, pad=12)
+    ax.axvline(80, color=GREEN, ls="--", lw=1)
+    ax.text(80, -0.7, "80% gate", color=GREEN, fontsize=8, ha="center")
+    for i, (b, a) in enumerate(zip(before, after)):
+        ax.text(b + 1, i + h / 2, f"{b}%", va="center", fontsize=8, color=INK)
+        ax.text(a + 1, i - h / 2, f"{a}%", va="center", fontsize=8, weight="bold", color=GREEN)
+    ax.legend(loc="lower right", fontsize=9)
+    for sp in ["top", "right"]:
+        ax.spines[sp].set_visible(False)
+    fig.savefig(os.path.join(OUT, "13_coverage.png"), bbox_inches="tight", facecolor=WHITE, pad_inches=0.25)
+    plt.close(fig); print("wrote 13_coverage.png")
+
+
+# ---------------------------------------------------------------------------
+# 14. Path to production
+# ---------------------------------------------------------------------------
+def d14_roadmap():
+    fig, ax = _fig(12, 7.5)
+    title(ax, "Path to Production", "Engineering gaps are closed; what remains is operational & product")
+    steps = [
+        (82, "P0–P1–P2 hardening", "DONE", GREEN, GREEN_L),
+        (72, "Phase 1 bug fixes (crash, image, dedup)", "DONE", GREEN, GREEN_L),
+        (62, "Live boot smoke test (reaches QR)", "DONE", GREEN, GREEN_L),
+        (52, "Phase 2 integration tests (83% coverage)", "DONE", GREEN, GREEN_L),
+        (42, "Live pilot: pair a spare number, 1 group, 1 week", "NEXT", AMBER, AMBER_L),
+        (32, "Observability: metrics, alerting, cost monitor", "TODO", GRAY, GRAY_L),
+        (22, "Compliance & disclaimers (DPDP, liability)", "TODO", GRAY, GRAY_L),
+        (12, "WhatsApp Business Platform migration → GA", "TODO", BLUE, BLUE_L),
+    ]
+    for y, label, status, ec, fc in steps:
+        box(ax, 14, y, 66, 8, label, fc=fc, ec=ec, fs=9.5)
+        box(ax, 82, y, 14, 8, status, fc=ec, ec=ec, tc=WHITE, fs=9, bold=True)
+    ax.text(50, 4, "Verdict: moved from 'go with caveats' toward 'good to go' — the two biggest council gaps "
+                   "(untested core, never run) are now closed.",
+            ha="center", fontsize=8.5, color=INK, style="italic")
+    save(fig, "14_roadmap.png")
+
+
 if __name__ == "__main__":
     d01_original_arch(); d02_message_flow(); d03_hardened_arch(); d04_before_after()
     d05_memory(); d06_deployment(); d07_auth_lifecycle(); d08_scaling()
     d09_risk_matrix(); d10_scorecard(); d11_gtm_funnel(); d12_revenue()
+    d13_coverage(); d14_roadmap()
     print("\nAll diagrams written to", os.path.abspath(OUT))

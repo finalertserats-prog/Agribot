@@ -7,11 +7,13 @@ two variants cannot drift. Honesty-first (Codex review) + India-market realism
 """
 
 DATE = "11 July 2026"
-COMMIT = "73e7cf9"
+COMMIT = "bc87e5e"
 VERDICT = "GO WITH CAVEATS"
+BASIS = "78 tests passing · ~83% coverage (80% gate) · boots to QR"
 
 DOCS = ["01_Original_Repo", "02_What_We_Built", "03_Deployment_VPS_Scaling",
-        "04_Risks_and_Readiness", "05_GoToMarket_Monetization"]
+        "04_Risks_and_Readiness", "05_GoToMarket_Monetization",
+        "06_Test_Results_Next_Steps"]
 
 TITLES = {
     "01_Original_Repo": "The Original AgriFriend Bot",
@@ -19,6 +21,7 @@ TITLES = {
     "03_Deployment_VPS_Scaling": "Going Live: Deployment, VPS & Scaling",
     "04_Risks_and_Readiness": "Production Readiness, Risks & Mitigations",
     "05_GoToMarket_Monetization": "Go-to-Market, Monetization & Growth",
+    "06_Test_Results_Next_Steps": "Test Results & Next Steps",
 }
 SUBTITLES = {
     "01_Original_Repo": "What the original repository is and how it works",
@@ -26,6 +29,7 @@ SUBTITLES = {
     "03_Deployment_VPS_Scaling": "Running it for real: servers, operations, and how it scales",
     "04_Risks_and_Readiness": "An honest go/no-go, the risks, and how to close them",
     "05_GoToMarket_Monetization": "Turning a working bot into a useful, revenue-yielding product",
+    "06_Test_Results_Next_Steps": "Verification status, coverage, the live smoke test, and the road ahead",
 }
 
 HONESTY = ("honesty", "Read this first",
@@ -693,10 +697,157 @@ def doc05():
     return d, s
 
 
+# ============================================================ DOC 6
+def doc06():
+    d = [
+        ("h1", "1. Purpose"),
+        ("p", "This document records the **verification status** of the hardened AgriFriend bot — "
+              "what has been tested, the coverage achieved, what a live run proved — and the "
+              "**next steps** to a confident production launch. It is the most current snapshot of "
+              "readiness and supersedes earlier estimates in the other documents where they differ."),
+        ("kpi", [("78", "automated tests"), ("83%", "line coverage"),
+                 ("80%", "enforced gate"), ("Boots ✓", "live smoke test")]),
+        ("callout", "ok", "Headline",
+         "The two biggest readiness gaps the review panel named — an **untested core** and having "
+         "**never been run** — are now both closed. Coverage went from 38% to 83%, and the bot has "
+         "been booted and verified to reach the WhatsApp pairing screen."),
+
+        ("h1", "2. What We Verify"),
+        ("p", "Every change must pass the same gate before it is accepted:"),
+        ("bul", [
+            "**Type-check** — `tsc --noEmit` (strict TypeScript) must be clean.",
+            "**Build** — `tsc` must compile to `dist/`.",
+            "**Tests** — 78 unit + integration tests must pass.",
+            "**Coverage gate** — an 80% line/statement/function threshold, enforced in CI config.",
+        ]),
+
+        ("h1", "3. Test Suite Breakdown"),
+        ("table", ["Test file", "Tests", "What it verifies"], [
+            ["handler.test.ts", "11", "The whole message pipeline: guardrail, rate limits, groups, image routing, Gemini-failure fallback, persist-before-send"],
+            ["whatsapp.test.ts", "5", "Reconnect scheduling, single-flight guard, loggedOut-exits, restart-safe dedup"],
+            ["database.test.ts", "10", "User + interaction round-trips, profile merge, sanitisation"],
+            ["persist.test.ts", "8", "Atomic writes, debounce, flush-rethrow-on-failure, write serialization"],
+            ["gemini-api.test.ts", "8", "withRetry (429), classifier fail-open, profile parse-failure"],
+            ["domain.test.ts", "12", "Keyword guardrail (word-boundary), text extraction, regex escaping"],
+            ["rateLimiter.test.ts", "6", "Sliding-window limits, peek, sweep, reset"],
+            ["seen.test.ts", "7", "Dedup cache eviction, seed/snapshot (persistence)"],
+            ["memory.test.ts", "3", "RAG per-user filter + skip-when-few"],
+            ["cosine.test.ts / gemini.test.ts", "8", "Cosine similarity; prompt-injection framing"],
+        ]),
+
+        ("h1", "4. Coverage — Before vs After Phase 2"),
+        ("img", "13_coverage.png", "Line coverage per module, before and after the Phase 2 test pass."),
+        ("table", ["Module", "Before", "After"], [
+            ["handler.ts (message router)", "0%", "75%"],
+            ["whatsapp.ts (connection lifecycle)", "0%", "81%"],
+            ["gemini.ts", "12%", "65%"],
+            ["memory.ts", "21%", "82%"],
+            ["persist.ts", "87%", "100%"],
+            ["Overall", "38%", "83%"],
+        ]),
+        ("callout", "note", "On the two files that were 0%",
+         "`handler.ts` and `whatsapp.ts` are the production-critical paths (message routing and the "
+         "WhatsApp connection). Getting them from 0% to 75–81% is the single most important quality "
+         "change in this phase; to make `handler.ts` testable we extracted it into its own "
+         "side-effect-free module."),
+
+        ("h1", "5. What the Tests Prove"),
+        ("bul", [
+            "**Correct routing** — off-topic messages get the canned reply with no paid model call; "
+            "farming questions are answered; images go to vision.",
+            "**Abuse & cost control** — per-user and global rate limits actually throttle.",
+            "**Resilience** — a Gemini failure still returns a friendly fallback AND persists the "
+            "interaction; a failed send does not lose data.",
+            "**Reconnect safety** — a dropped connection reschedules exactly once and recovers; a "
+            "logout exits cleanly instead of looping.",
+            "**No data loss on shutdown** — a failed flush is surfaced, not silently swallowed.",
+            "**Guardrail depth** — the model classifier fails *open* so a transient error never wrongly "
+            "blocks a real farmer.",
+        ]),
+
+        ("h1", "6. Live Smoke Test"),
+        ("p", "Beyond automated tests, the bot was **actually booted** for the first time. This proved "
+              "the real startup path end to end and — as live runs do — surfaced two genuine bugs that "
+              "mocked tests could not:"),
+        ("num", [
+            "**Reconnect regression** — a timer was configured so the process could exit during a "
+            "reconnect backoff instead of retrying. Fixed.",
+            "**WhatsApp 405 / no QR** — the WhatsApp protocol version was not pinned, so the handshake "
+            "was rejected. Fixed by fetching and pinning the current version.",
+        ]),
+        ("callout", "ok", "Result after the fixes",
+         "The bot now boots cleanly through database, AI, and memory initialisation and reaches the "
+         "**\"Scan the QR code\"** pairing stage — the exact point where an operator links a phone to "
+         "go live."),
+
+        ("h1", "7. Honest Gaps Still Open"),
+        ("callout", "honesty", "What testing has NOT yet done",
+         "Automated tests use mocks, and the smoke test could not complete real QR pairing (no spare "
+         "number; the test environment's IP is likely blocked by WhatsApp). So a **true end-to-end "
+         "live conversation** has not happened yet. Observability and compliance are also still to do."),
+        ("bul", [
+            "**Real QR pairing + live messages** on a proper VPS with a spare number.",
+            "**Observability** — metrics, alerting, and cost monitoring (not just logs).",
+            "**Compliance & disclaimers** — consent, retention, and agri-advice liability notices.",
+            "**Platform decision** — migration plan off the unofficial WhatsApp library.",
+        ]),
+
+        ("h1", "8. Path to Production"),
+        ("img", "14_roadmap.png", "What is done and what remains on the road to launch."),
+        ("num", [
+            "**Live pilot** — pair a spare number, run in one group for a week, watch logs + cost.",
+            "**Observability** — add metrics, error alerting, and a Gemini cost monitor.",
+            "**Compliance** — consent at onboarding, retention/deletion, liability disclaimers.",
+            "**Localization** — regional language + voice for the pilot region (see the GTM document).",
+            "**Platform migration** — move to the official WhatsApp Business Platform for reliability.",
+        ]),
+
+        ("h1", "9. Readiness Update"),
+        ("p", "The independent review panel's verdict was **GO WITH CAVEATS** — fit for a monitored "
+              "pilot, not an unattended launch — with the untested core and lack of a live run as the "
+              "two decisive gaps. Both are now closed. The remaining items are **operational and "
+              "product** (pilot, observability, compliance, platform), not core engineering. The "
+              "engineering foundation is now genuinely production-grade and well-tested; the honest "
+              "next milestone is a supervised live pilot."),
+        ("p", "**Traceability:** the results above correspond to the hardened repository at commits "
+              "`40c8366` (hardening), `eeb5621` (Phase 1 fixes), `8204895` (smoke-test fixes), and "
+              "`bc87e5e` (Phase 2 tests)."),
+    ]
+    s = [
+        ("h1", "Test Results & Next Steps — In Brief"),
+        ("callout", "ok", "The two biggest gaps are closed",
+         "Coverage went **38% → 83%** and the bot has been **booted and verified** to reach WhatsApp "
+         "pairing. The review panel's two decisive gaps — untested core, never run — are now resolved."),
+        ("kpi", [("78", "tests"), ("83%", "coverage"), ("80%", "gate"), ("Boots ✓", "live smoke")]),
+        ("img", "13_coverage.png", "Coverage before vs after Phase 2."),
+        ("h2", "What is now tested"),
+        ("bul", [
+            "The full message pipeline (`handler.ts` 0→75%) and connection lifecycle (`whatsapp.ts` 0→81%).",
+            "Rate limiting, reconnect safety, persistence failure handling, RAG retrieval, guardrail fail-open.",
+        ]),
+        ("h2", "Live smoke test"),
+        ("p", "Booting the bot for real proved the startup path and caught **two bugs** (a reconnect "
+              "regression and an unpinned WhatsApp version) — both fixed. It now reaches the QR pairing screen."),
+        ("h2", "Next steps"),
+        ("img", "14_roadmap.png", "Path to production."),
+        ("num", [
+            "Supervised **live pilot** (spare number, one group, one week).",
+            "**Observability** — metrics, alerting, cost monitoring.",
+            "**Compliance & disclaimers** (DPDP, agri-advice liability).",
+            "**WhatsApp Business Platform** migration for reliability + scale.",
+        ]),
+        ("callout", "honesty", "Still honest",
+         "Tests use mocks and QR pairing wasn't completed live, so a real end-to-end conversation "
+         "hasn't happened yet. Verdict remains GO WITH CAVEATS — but now clearly trending to 'good to go'."),
+    ]
+    return d, s
+
+
 BUILDERS = {
     "01_Original_Repo": doc01,
     "02_What_We_Built": doc02,
     "03_Deployment_VPS_Scaling": doc03,
     "04_Risks_and_Readiness": doc04,
     "05_GoToMarket_Monetization": doc05,
+    "06_Test_Results_Next_Steps": doc06,
 }

@@ -147,11 +147,11 @@ class DocBuilder:
         _no_borders(t); _set_cell_margins(t)
         info = [
             ("Document", m["doc_title"]),
-            ("Part of", m["pack_name"] + f"  ({m['doc_index']} of 5)"),
+            ("Part of", m["pack_name"] + f"  ({m['doc_index']} of {m.get('doc_total', 6)})"),
             ("Version", m["variant"] + "  ·  " + m["date"]),
             ("Source (original)", "github.com/Shivaganesh-dev/agrifriend-bot"),
             ("Source (hardened)", "github.com/finalertserats-prog/Agribot  @ " + m["commit"]),
-            ("Basis", f"48 unit tests · ~38% coverage · verdict: {m['verdict']}"),
+            ("Basis", m.get("basis", "") + f" · verdict: {m['verdict']}"),
         ]
         for k, v in info:
             row = t.add_row().cells

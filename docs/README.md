@@ -1,7 +1,10 @@
 # AgriFriend — Documentation Generator
 
-Reproducible source for the AgriFriend project documentation pack (5 documents,
+Reproducible source for the AgriFriend project documentation pack (6 documents,
 each in a Detailed and Summary variant, rendered to `.docx` and `.pdf`).
+
+Documents: (1) original repo, (2) what we built, (3) deployment/VPS/scaling,
+(4) risks/readiness, (5) go-to-market/monetization, (6) test results & next steps.
 
 The generated binaries (Word/PDF files and diagram PNGs) are intentionally **not**
 committed — only the source that produces them, for traceability.

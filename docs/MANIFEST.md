@@ -2,10 +2,10 @@
 
 - Generated: 11 July 2026
 - Original repo: https://github.com/Shivaganesh-dev/agrifriend-bot
-- Hardened repo: https://github.com/finalertserats-prog/Agribot @ 73e7cf9
-- Basis: 48 unit tests passing; ~38% line coverage; core handler + whatsapp lifecycle 0%
-- Readiness verdict: GO WITH CAVEATS (monitored pilot, not unattended production)
-- The bot has NOT been run against live WhatsApp + Gemini as of this pack.
+- Hardened repo: https://github.com/finalertserats-prog/Agribot @ bc87e5e
+- Basis: 78 tests passing; ~83% line coverage (80% gate); handler 75%, whatsapp 81%
+- Readiness verdict: GO WITH CAVEATS (monitored pilot; trending to 'good to go')
+- Live smoke test: boots cleanly to the WhatsApp QR pairing stage; full live pairing not yet done.
 
 ## Documents (Detailed + Summary, each as .docx and .pdf)
 - The Original AgriFriend Bot
@@ -13,8 +13,9 @@
 - Going Live: Deployment, VPS & Scaling
 - Production Readiness, Risks & Mitigations
 - Go-to-Market, Monetization & Growth
+- Test Results & Next Steps
 
-## Files produced: 10 docx, 10 pdf
+## Files produced: 12 docx, 12 pdf
 
 ## Reproduce
 ```

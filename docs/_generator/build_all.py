@@ -22,6 +22,7 @@ PRETTY = {
     "03_Deployment_VPS_Scaling": "03 - Deployment, VPS & Scaling",
     "04_Risks_and_Readiness": "04 - Production Readiness & Risks",
     "05_GoToMarket_Monetization": "05 - Go-to-Market & Monetization",
+    "06_Test_Results_Next_Steps": "06 - Test Results & Next Steps",
 }
 
 
@@ -39,9 +40,11 @@ def build_docx():
                 "subtitle": content.SUBTITLES[key],
                 "variant": variant,
                 "doc_index": idx,
+                "doc_total": len(content.DOCS),
                 "date": content.DATE,
                 "commit": content.COMMIT,
                 "verdict": content.VERDICT,
+                "basis": content.BASIS,
             }
             b = DocBuilder(meta)
             b.render(blocks)
@@ -82,9 +85,9 @@ def write_manifest(docx_paths, pdf_paths):
         f"- Generated: {content.DATE}",
         "- Original repo: https://github.com/Shivaganesh-dev/agrifriend-bot",
         f"- Hardened repo: https://github.com/finalertserats-prog/Agribot @ {content.COMMIT}",
-        "- Basis: 48 unit tests passing; ~38% line coverage; core handler + whatsapp lifecycle 0%",
-        f"- Readiness verdict: {content.VERDICT} (monitored pilot, not unattended production)",
-        "- The bot has NOT been run against live WhatsApp + Gemini as of this pack.",
+        "- Basis: 78 tests passing; ~83% line coverage (80% gate); handler 75%, whatsapp 81%",
+        f"- Readiness verdict: {content.VERDICT} (monitored pilot; trending to 'good to go')",
+        "- Live smoke test: boots cleanly to the WhatsApp QR pairing stage; full live pairing not yet done.",
         "",
         "## Documents (Detailed + Summary, each as .docx and .pdf)",
     ]
