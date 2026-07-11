@@ -427,9 +427,150 @@ def d14_roadmap():
     save(fig, "14_roadmap.png")
 
 
+# ---------------------------------------------------------------------------
+# 15. Two-system autonomy architecture (+ policy engine gate)
+# ---------------------------------------------------------------------------
+def d15_autonomy_arch():
+    fig, ax = _fig(12, 8)
+    title(ax, "Autonomy Architecture — Two Systems + a Policy Gate",
+          "Product autonomy is separate from ops autonomy; every outbound send passes the policy engine")
+    # farmer + channel
+    box(ax, 4, 66, 16, 10, "Farmers\n(many tenants)", fc=GREEN_L, ec=GREEN, bold=True)
+    box(ax, 4, 40, 16, 12, "WhatsApp Business\nPlatform (Cloud API)\n— required for outbound", fc=AMBER_L, ec=AMBER, bold=True, fs=8.5)
+    # product core
+    box(ax, 26, 60, 20, 16, "AgriFriend core\n(hardened, multi-tenant)\nreactive replies", fc=WHITE, ec=GREEN, bold=True)
+    box(ax, 26, 38, 20, 14, "Autonomy Engine\nscheduler · triggers\npersonalization", fc=GREEN_L, ec=GREEN, bold=True, fs=9)
+    # policy engine
+    box(ax, 52, 46, 20, 20, "POLICY ENGINE\n(deterministic gate)\nconsent · risk class\nfrequency · quiet hrs\ncost · approval", fc=RED_L, ec=RED, bold=True, fs=8.5)
+    # approval + send
+    box(ax, 78, 62, 18, 10, "Human approval\n(high-risk advice)", fc=AMBER_L, ec=AMBER, fs=8.5)
+    box(ax, 78, 44, 18, 10, "Send (templated,\nconsented)", fc=GREEN_L, ec=GREEN, bold=True, fs=8.5)
+    # ops copilot
+    box(ax, 30, 12, 30, 14, "Ops Copilot (OpenClaw / Hermes)\nmonitor · self-heal · deploy · alert operator\n[least privilege · no farmer data]", fc=BLUE_L, ec=BLUE, bold=True, fs=8.5)
+    box(ax, 68, 14, 20, 10, "Operator\n(alerts, approvals)", fc=GRAY_L, ec=GRAY, fs=8.5)
+    arrow(ax, (20, 60), (20, 52), color=AMBER, style="<|-|>")
+    arrow(ax, (20, 46), (26, 45), color=AMBER)
+    arrow(ax, (46, 45), (52, 52), color=GREEN)
+    arrow(ax, (72, 60), (78, 65), color=RED)
+    arrow(ax, (72, 54), (78, 50), color=RED)
+    arrow(ax, (78, 49), (46, 46), color=GREEN, ls="--")
+    arrow(ax, (45, 19), (30, 46), color=BLUE, ls=":")
+    arrow(ax, (60, 19), (68, 19), color=GRAY)
+    ax.text(50, 4, "Split-brain guard: the Autonomy Engine proposes; the Policy Engine decides; Ops Copilot has NO send authority.",
+            ha="center", fontsize=8.5, color=INK, style="italic")
+    save(fig, "15_autonomy_arch.png")
+
+
+# ---------------------------------------------------------------------------
+# 16. Autonomy ladder
+# ---------------------------------------------------------------------------
+def d16_ladder():
+    fig, ax = _fig(11, 8)
+    title(ax, "The Autonomy Ladder", "Increase autonomy only as safety is proven — advice stays bounded")
+    rungs = [
+        (14, "L0  Reactive — answers when asked  (TODAY)", GREEN, GREEN_L),
+        (25, "L1  Proactive broadcast — templated tips & weather", BLUE, BLUE_L),
+        (36, "L2  Personalized follow-ups (crop-stage, past issues)", BLUE, BLUE_L),
+        (47, "L3  Agentic actions — APIs, expert escalation, calls", AMBER, AMBER_L),
+        (58, "L4  Self-managing ops — heal, deploy, cost governance", PURPLE, PURPLE_L),
+        (69, "L5  Self-improving — refine skills (governed, last)", RED, RED_L),
+    ]
+    for i, (y, label, ec, fc) in enumerate(rungs):
+        w = 40 + i * 8
+        box(ax, 8, y, w, 8, label, fc=fc, ec=ec, fs=9, bold=(i == 0))
+    ax.plot([6, 92], [43, 43], color=RED, ls="--", lw=1.4)
+    ax.text(92, 44.5, "human-in-the-loop above this line\n(high-stakes agronomic advice)", ha="right",
+            fontsize=8, color=RED, style="italic")
+    save(fig, "16_ladder.png")
+
+
+# ---------------------------------------------------------------------------
+# 17. Autonomy phased roadmap
+# ---------------------------------------------------------------------------
+def d17_autonomy_roadmap():
+    fig, ax = _fig(12, 7)
+    title(ax, "Autonomy Roadmap", "Phase A is the unlock; Phase B is the safe quick win")
+    phases = [
+        (4, "A. Foundation\nWA Business Platform\nconsent · templates\n· policy engine", AMBER_L, AMBER, "UNLOCK"),
+        (24, "B. Ops Copilot\nmonitor · heal\ndeploy · alert\n(least privilege)", BLUE_L, BLUE, "QUICK WIN"),
+        (44, "C. Proactive engine\nscheduler · triggers\npersonalization\n+ approval queue", GREEN_L, GREEN, "L1→L2"),
+        (64, "D. Agentic actions\nweather/market APIs\nescalation · calls", PURPLE_L, PURPLE, "L3"),
+        (84, "E. Self-improve\noutcome tracking\ngoverned refinement", RED_L, RED, "L5 · last"),
+    ]
+    for x, t, fc, ec, tag in phases:
+        box(ax, x, 42, 15, 24, t, fc=fc, ec=ec, fs=8, bold=True)
+        box(ax, x, 34, 15, 6, tag, fc=ec, ec=ec, tc=WHITE, fs=7.5, bold=True)
+    for x in (19, 39, 59, 79):
+        arrow(ax, (x, 54), (x + 5, 54), color=INK)
+    ax.text(50, 22, "Contingency at every phase: if WhatsApp quality-rating drops or the number is restricted,\n"
+                    "gracefully degrade to reactive-only mode.",
+            ha="center", fontsize=8.5, color=RED, style="italic")
+    save(fig, "17_autonomy_roadmap.png")
+
+
+# ---------------------------------------------------------------------------
+# 18. Policy engine decision flow
+# ---------------------------------------------------------------------------
+def d18_policy_flow():
+    fig, ax = _fig(11, 8.5)
+    title(ax, "Policy Engine — Every Outbound Message Passes This Gate",
+          "Deterministic checks between the AI/scheduler and the actual send")
+    checks = [
+        (80, "Candidate message (from Autonomy Engine)", GREEN_L, GREEN),
+        (71, "Opt-in consent on file?", GRAY_L, GRAY),
+        (62, "Risk class: high-stakes advice? → human approval", RED_L, RED),
+        (53, "Approved template for this language?", BLUE_L, BLUE),
+        (44, "Frequency cap & quiet hours OK?", AMBER_L, AMBER),
+        (35, "Tenant quota & cost budget OK?", AMBER_L, AMBER),
+        (26, "SEND — logged for full audit trail", GREEN_L, GREEN),
+    ]
+    prev = None
+    for y, t, fc, ec in checks:
+        box(ax, 22, y, 56, 6.5, t, fc=fc, ec=ec, fs=9)
+        if prev:
+            arrow(ax, (50, prev), (50, y + 6.5), color=INK)
+        prev = y
+    box(ax, 82, 44, 14, 20, "any check fails →\nSUPPRESS\n+ log reason\n+ no send", fc=RED_L, ec=RED, fs=8, bold=True)
+    for y in (71, 62, 53, 44, 35):
+        arrow(ax, (78, y + 3), (82, 54), color=RED, ls=":")
+    ax.text(50, 15, "Audit record per message: facts · prompt+model version · template ID · consent basis ·\n"
+                    "tenant · cost · approval · delivery status.",
+            ha="center", fontsize=8, color=INK, style="italic")
+    save(fig, "18_policy_flow.png")
+
+
+# ---------------------------------------------------------------------------
+# 19. Value map
+# ---------------------------------------------------------------------------
+def d19_value_map():
+    fig, ax = _fig(12, 8)
+    title(ax, "How Autonomy Enhances AgriFriend", "From a reactive tool into a proactive, trusted companion")
+    box(ax, 38, 82, 24, 9, "Autonomy\n(proactive + self-managing)", fc=GREEN, ec=GREEN, tc=WHITE, bold=True, fs=9.5)
+    # farmer value
+    ax.text(22, 72, "Farmer value", ha="center", fontsize=11, weight="bold", color=GREEN)
+    fv = [(62, "Timely weather & pest early-warning"), (54, "Crop-stage nudges (right advice, right time)"),
+          (46, "Never-forgotten follow-ups"), (38, "Market prices when they matter"),
+          (30, "Voice + local language reach")]
+    for y, t in fv:
+        box(ax, 4, y, 36, 6.5, t, fc=GREEN_L, ec=GREEN, fs=8.5)
+    # business value
+    ax.text(78, 72, "Business value", ha="center", fontsize=11, weight="bold", color=BLUE)
+    bv = [(62, "Higher retention & daily engagement"), (54, "Proactive reach sponsors will pay for"),
+          (46, "FPO/gov: measurable extension at scale"), (38, "Lower ops cost (self-healing)"),
+          (30, "Data flywheel: outcomes improve advice")]
+    for y, t in bv:
+        box(ax, 60, y, 36, 6.5, t, fc=BLUE_L, ec=BLUE, fs=8.5)
+    arrow(ax, (44, 82), (22, 69), color=GREEN)
+    arrow(ax, (56, 82), (78, 69), color=BLUE)
+    ax.text(50, 20, "Guardrail: value depends on TRUST — anti-fatigue caps, consent, and human-checked advice protect it.",
+            ha="center", fontsize=8.5, color=RED, style="italic")
+    save(fig, "19_value_map.png")
+
+
 if __name__ == "__main__":
     d01_original_arch(); d02_message_flow(); d03_hardened_arch(); d04_before_after()
     d05_memory(); d06_deployment(); d07_auth_lifecycle(); d08_scaling()
     d09_risk_matrix(); d10_scorecard(); d11_gtm_funnel(); d12_revenue()
     d13_coverage(); d14_roadmap()
+    d15_autonomy_arch(); d16_ladder(); d17_autonomy_roadmap(); d18_policy_flow(); d19_value_map()
     print("\nAll diagrams written to", os.path.abspath(OUT))

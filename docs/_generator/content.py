@@ -13,7 +13,8 @@ BASIS = "78 tests passing · ~83% coverage (80% gate) · boots to QR"
 
 DOCS = ["01_Original_Repo", "02_What_We_Built", "03_Deployment_VPS_Scaling",
         "04_Risks_and_Readiness", "05_GoToMarket_Monetization",
-        "06_Test_Results_Next_Steps"]
+        "06_Test_Results_Next_Steps", "07_Autonomy_Plan",
+        "08_Enhancements_and_Value"]
 
 TITLES = {
     "01_Original_Repo": "The Original AgriFriend Bot",
@@ -22,6 +23,8 @@ TITLES = {
     "04_Risks_and_Readiness": "Production Readiness, Risks & Mitigations",
     "05_GoToMarket_Monetization": "Go-to-Market, Monetization & Growth",
     "06_Test_Results_Next_Steps": "Test Results & Next Steps",
+    "07_Autonomy_Plan": "The Autonomy Plan",
+    "08_Enhancements_and_Value": "Enhancements & Value",
 }
 SUBTITLES = {
     "01_Original_Repo": "What the original repository is and how it works",
@@ -30,6 +33,8 @@ SUBTITLES = {
     "04_Risks_and_Readiness": "An honest go/no-go, the risks, and how to close them",
     "05_GoToMarket_Monetization": "Turning a working bot into a useful, revenue-yielding product",
     "06_Test_Results_Next_Steps": "Verification status, coverage, the live smoke test, and the road ahead",
+    "07_Autonomy_Plan": "How to make AgriFriend proactive and self-managing — safely",
+    "08_Enhancements_and_Value": "How autonomy enhances the app and where the value comes from",
 }
 
 HONESTY = ("honesty", "Read this first",
@@ -843,6 +848,291 @@ def doc06():
     return d, s
 
 
+# ============================================================ DOC 7
+def doc07():
+    d = [
+        ("h1", "1. Vision — and an Honest Framing"),
+        ("p", "The goal is to take AgriFriend from a **reactive** bot (it answers when asked) to a "
+              "**proactive, self-managing** service: it reaches out with the right advice at the right "
+              "time, and it keeps itself running. This document is the concrete plan — architecture, "
+              "tools, phased steps, and the guardrails that make autonomy safe."),
+        ("callout", "honesty", "What 'fully autonomous' responsibly means here",
+         "For a service advising **smallholder farmers**, unbounded autonomy is the wrong target — "
+         "wrong advice at scale is dangerous. The credible goal is **supervised proactive operations "
+         "with bounded automation**: the system acts on its own within strict, deterministic policy, "
+         "and a human stays in the loop for high-stakes advice. Autonomy increases as safety is proven."),
+
+        ("h1", "2. Architecture — Two Systems and a Policy Gate"),
+        ("p", "The frameworks in this space (OpenClaw, Hermes) are **single-user personal assistants**; "
+              "AgriFriend is a **multi-tenant product**. So autonomy is split into two systems that "
+              "never share send authority:"),
+        ("bul", [
+            "**AgriFriend Autonomy Engine** — built into the product. Scheduler, trigger engine, and "
+            "personalization that *propose* proactive messages. Multi-tenant, we own it.",
+            "**Ops Copilot** — an OpenClaw or Hermes instance that watches, heals, deploys, and alerts "
+            "the operator. **Least privilege, no farmer data, no send authority.**",
+            "**Policy Engine** — a deterministic gate between the AI/scheduler and any outbound send. "
+            "The Autonomy Engine *proposes*; the Policy Engine *decides*. This prevents split-brain and "
+            "is the single most important safety component.",
+        ]),
+        ("img", "15_autonomy_arch.png", "Two systems plus the policy gate; ops autonomy is isolated from product autonomy."),
+
+        ("h1", "3. The Policy Engine (the Safety Core)"),
+        ("p", "Every proactive message passes a deterministic checklist before it can be sent. This is "
+              "code, not an LLM decision — it cannot be argued out of."),
+        ("img", "18_policy_flow.png", "The deterministic gate every outbound message must pass."),
+        ("bul", [
+            "**Consent** — is there a valid opt-in for proactive contact? (DPDP + WhatsApp policy.)",
+            "**Risk class** — is this high-stakes advice (pesticide dose, disease alert)? → require human approval.",
+            "**Template eligibility** — is there an approved template for the farmer's language?",
+            "**Frequency cap & quiet hours** — anti-fatigue; no 6am spam.",
+            "**Tenant quota & cost budget** — per-tenant limits; hard cost ceiling.",
+            "**Audit** — every send is logged: facts, prompt + model version, template ID, consent basis, "
+            "tenant, cost, approval, and delivery status.",
+        ]),
+
+        ("h1", "4. The Autonomy Ladder"),
+        ("img", "16_ladder.png", "Autonomy increases rung by rung; advice stays human-checked above the line."),
+
+        ("h1", "5. Advice Risk Taxonomy — What Needs Human Approval"),
+        ("p", "Not all messages carry the same risk. The Policy Engine classifies each and routes "
+              "high-risk ones to a human before they can send."),
+        ("table", ["Message type", "Risk", "Autonomy"], [
+            ["Seasonal tip / general encouragement", "Low", "Auto (approved template)"],
+            ["Weather / market-price alert", "Low–Med", "Auto (verified data source)"],
+            ["Crop-stage reminder / follow-up", "Medium", "Auto if templated; else review"],
+            ["Pest / disease diagnosis", "High", "Human-reviewed"],
+            ["Pesticide / fertiliser dosage", "High", "Human-reviewed (expert)"],
+            ["Outbreak / crisis alert", "High", "Expert-approved, priority path"],
+        ]),
+
+        ("h1", "6. Which Tools — Use, Borrow, and Vet"),
+        ("table", ["Tool", "Role", "How we use it"], [
+            ["OpenClaw", "Gateway-first agent", "Run as the Ops Copilot (multi-channel alerts, scheduled ops tasks, phone-call skill). Borrow its scheduler + skills pattern for the Autonomy Engine."],
+            ["Hermes Agent", "Runtime-first agent", "Alternative Ops Copilot; borrow its self-improving-loop idea for Phase E — but governed."],
+            ["Our hardened core", "The product", "Stays the multi-tenant foundation: rate limits, cost ceilings, persistence, tests."],
+            ["WhatsApp Business Platform", "Official channel", "Required for all outbound (see §7)."],
+        ]),
+        ("callout", "warn", "Skill supply-chain rule (non-negotiable)",
+         "A ClawHub audit found **~12% of community skills contained malicious code**. Rule for a "
+         "client product: **no third-party skill runs in production without vendoring, code review, "
+         "sandboxing, signing, and least-privilege scoping.** Prefer building the few skills we need."),
+
+        ("h1", "7. Hard Constraints (Read Before Building)"),
+        ("bul", [
+            "**Outbound requires the official WhatsApp Business Platform.** Proactive/broadcast on the "
+            "current unofficial library = near-certain ban (outbound is the top ban trigger). This gates "
+            "the entire proactive track. Budget its realities: **template pre-approval**, the "
+            "**24-hour customer-service window**, **per-conversation pricing**, and **quality ratings** "
+            "that can throttle or suspend sending.",
+            "**Human-in-the-loop for high-stakes advice** — operationalised via the risk taxonomy (§5).",
+            "**Opt-in consent** at onboarding; easy opt-down / opt-out; suppression after non-engagement.",
+            "**Hard cost ceilings** on every autonomy loop (we already have this pattern).",
+            "**Localization** — templates, agronomic terms, and units must be correct per language "
+            "(Hindi, Marathi, Telugu, Kannada, Tamil, Bengali, Punjabi …). A wrong-language or "
+            "wrong-unit template is a silent failure mode.",
+        ]),
+
+        ("h1", "8. Phased Roadmap"),
+        ("img", "17_autonomy_roadmap.png", "Phase A is the unlock; Phase B is the safe quick win; L5 comes last."),
+
+        ("h1", "9. Detailed Steps by Phase"),
+        ("h2", "Phase A — Foundation (the unlock)"),
+        ("num", [
+            "Apply for and verify a **WhatsApp Business Platform** account; provision a business number.",
+            "Design the **opt-in consent** flow and store consent basis per farmer.",
+            "Build the **approved-template library** (per message type × language).",
+            "Build the **Policy Engine** (consent, risk class, template eligibility, frequency, quiet "
+            "hours, quota, cost, audit log).",
+            "Add graceful **degradation to reactive-only** if quality rating drops or the number is restricted.",
+        ]),
+        ("h2", "Phase B — Ops Copilot (safe quick win, can start now)"),
+        ("num", [
+            "Stand up OpenClaw or Hermes on a separate, **least-privilege** instance.",
+            "Give it read-only monitoring + scoped restart/deploy — **no farmer data, no send authority**.",
+            "Wire alerts to the operator (WhatsApp/Telegram) with severity + SLA.",
+            "Add self-heal (restart on crash), health checks, and a cost monitor.",
+        ]),
+        ("h2", "Phase C — Proactive Engine (L1 → L2)"),
+        ("num", [
+            "Build the **scheduler** (heartbeat) and **trigger engine** (crop stage, weather, past issues).",
+            "Add per-farmer **personalization** from the profile + history (with data-quality checks).",
+            "Build the **human approval queue** with clear escalation thresholds so it doesn't bottleneck.",
+            "Add **anti-fatigue** (frequency caps, quiet hours, seasonal/crop-stage relevance, opt-down).",
+            "Add a **delivery-quality feedback loop** (delivered/read/opt-out/response classification).",
+        ]),
+        ("h2", "Phase D — Agentic Actions (L3)"),
+        ("num", [
+            "Integrate **verified weather + market-price APIs** (with geolocation and crop context).",
+            "Add **expert escalation** for high-stakes cases and a **crisis/outbreak mode** (priority, dedup).",
+            "Pilot **phone calls** for high-value cases — with consent, recording policy, language, cost caps, "
+            "retries, and telecom compliance.",
+        ]),
+        ("h2", "Phase E — Self-Improvement (last, governed)"),
+        ("num", [
+            "Track **outcomes** (not just engagement) with honest labels; account for weather/soil confounders.",
+            "Refine skills/prompts **behind governance** — changes are reviewed, versioned, and reversible.",
+            "Run **experiments** on outreach; never let a loop optimise engagement at the cost of agronomic quality.",
+        ]),
+
+        ("h1", "10. Operational Safeguards"),
+        ("bul", [
+            "**Auditability** — every proactive message is fully reconstructable (see §3).",
+            "**Rollback-of-advice** — if wrong advice reaches many farmers, detect, retract, notify, and "
+            "escalate. (Ops rollback does not undo what a farmer already did — so prevention > cure.)",
+            "**Tenant-specific policy** — different FPOs/NGOs/agri-cos have different crops, languages, "
+            "approval rules, and liability posture; policy is per-tenant, not one global setting.",
+            "**Operator workload model** — defined severities, SLAs, and an on-call answer for 'who approves "
+            "the storm alert at 6am?'",
+            "**Model/provider failure as first-class states** — outages, safety refusals, hallucinated "
+            "chemicals, and quota exhaustion each have explicit handling, not a generic retry.",
+            "**Autonomy evaluation harness** — simulation, replay, red-team prompts, tenant-isolation, "
+            "policy, and cost-burn tests. (Reactive-bot coverage does not prove autonomous behaviour.)",
+        ]),
+
+        ("h1", "11. Summary Checklist"),
+        ("num", [
+            "Migrate to WhatsApp Business Platform + consent + templates + Policy Engine (Phase A).",
+            "Stand up the least-privilege Ops Copilot (Phase B — can start now).",
+            "Build scheduler + triggers + personalization + approval queue + anti-fatigue (Phase C).",
+            "Add APIs, expert escalation, crisis mode, and (piloted) phone calls (Phase D).",
+            "Only then, governed self-improvement with honest outcome labels (Phase E).",
+        ]),
+    ]
+    s = [
+        ("h1", "The Autonomy Plan — In Brief"),
+        ("callout", "honesty", "Bounded, not blind",
+         "For a farmer-advice service, 'fully autonomous' responsibly means **supervised proactive "
+         "operations with bounded automation** — the system acts within strict policy, with a human in "
+         "the loop for high-stakes advice. Autonomy grows as safety is proven."),
+        ("p", "Two systems, never sharing send authority: an in-product **Autonomy Engine** (proposes "
+              "proactive messages) and an **Ops Copilot** (OpenClaw/Hermes — monitors & heals, least "
+              "privilege). Between the AI and any send sits a deterministic **Policy Engine**."),
+        ("img", "15_autonomy_arch.png", "Two systems + the policy gate."),
+        ("h2", "The safety core"),
+        ("img", "18_policy_flow.png", "Every outbound message passes this deterministic gate."),
+        ("h2", "The ladder & roadmap"),
+        ("img", "17_autonomy_roadmap.png", "Phase A unlocks it; Phase B is the safe quick win."),
+        ("bul", [
+            "**Phase A** — WhatsApp Business Platform + consent + templates + Policy Engine (the unlock).",
+            "**Phase B** — least-privilege Ops Copilot (start now).",
+            "**Phase C** — scheduler + triggers + personalization + approval queue + anti-fatigue.",
+            "**Phase D** — weather/market APIs, expert escalation, crisis mode, piloted phone calls.",
+            "**Phase E** — governed self-improvement, last.",
+        ]),
+        ("callout", "warn", "Two non-negotiables",
+         "Outbound REQUIRES the official WhatsApp Business Platform (or bans). And no third-party agent "
+         "skill runs in production without review + sandboxing (~12% of community skills were malicious)."),
+    ]
+    return d, s
+
+
+# ============================================================ DOC 8
+def doc08():
+    d = [
+        ("h1", "1. What Autonomy Changes"),
+        ("p", "Today AgriFriend is a helpful **tool** — it waits for a farmer to ask. Autonomy turns it "
+              "into a proactive **companion** that shows up at the right moment: before the storm, when "
+              "the pest risk spikes, at the crop stage where the next action matters. That shift — from "
+              "pull to push — is where most of the additional value lives, for both the farmer and the "
+              "business."),
+        ("img", "19_value_map.png", "How autonomy creates value on both sides — protected by trust guardrails."),
+
+        ("h1", "2. Value for the Farmer"),
+        ("table", ["Enhancement", "Why it matters to the farmer", "Level"], [
+            ["Weather & pest early-warning", "Act before damage, not after — saves crops and money", "L1"],
+            ["Crop-stage nudges", "The right advice at the right growth stage, unprompted", "L2"],
+            ["Never-forgotten follow-ups", "'How are the tomatoes we treated?' — continuity of care", "L2"],
+            ["Market-price alerts", "Sell at the right time; avoid distress sales", "L1–L3"],
+            ["Voice + local language", "Usable by low-literacy farmers in their own dialect", "L1+"],
+            ["Expert escalation & calls", "A human when it really matters", "L3"],
+        ]),
+
+        ("h1", "3. Value for the Business"),
+        ("table", ["Enhancement", "Business impact"], [
+            ["Higher engagement & retention", "Proactive, useful contact keeps farmers active — the core metric"],
+            ["Sponsorable proactive reach", "Agri-input sponsors pay for timely, contextual, opted-in reach"],
+            ["Measurable extension at scale", "FPOs/government can show advisory delivery + outcomes"],
+            ["Lower operating cost", "Self-healing ops reduce downtime and manual firefighting"],
+            ["Data flywheel", "Outcome tracking gradually improves advice quality (governed)"],
+        ]),
+        ("callout", "note", "This directly strengthens the go-to-market",
+         "The monetization thesis (see the GTM document) is B2B-led — sponsors and FPOs pay for reach "
+         "and engagement. Proactive, consented, well-targeted outreach is exactly the product that makes "
+         "that reach valuable — provided trust is protected."),
+
+        ("h1", "4. Flagship Enhancements"),
+        ("h3", "Weather & pest early-warning"),
+        ("p", "Location- and crop-aware alerts before an event. Highest farmer value; needs verified data "
+              "and a crisis-mode path for outbreaks."),
+        ("h3", "Crop-stage personalization"),
+        ("p", "Using each farmer's crop, sowing date, and history to send the *next* relevant action — the "
+              "difference between generic tips and advice that feels made for them."),
+        ("h3", "Proactive follow-ups"),
+        ("p", "Closing the loop on past problems builds trust and continuity — the thing a one-off Q&A bot "
+              "can never do."),
+        ("h3", "Voice & local language"),
+        ("p", "Voice notes in regional dialects unlock the low-literacy majority of the market — arguably "
+              "the single biggest adoption lever."),
+        ("h3", "Expert escalation & phone calls"),
+        ("p", "For high-stakes or high-value cases, a warm handoff to a human agronomist — the OpenClaw "
+              "phone-call capability, used sparingly and with consent."),
+
+        ("h1", "5. Prioritization — Value vs Effort"),
+        ("table", ["Enhancement", "Farmer value", "Effort", "Do when"], [
+            ["Ops Copilot (self-heal)", "Indirect (uptime)", "Low", "Now (Phase B)"],
+            ["Weather / market alerts", "High", "Medium", "Phase C (after A)"],
+            ["Crop-stage nudges", "High", "Medium", "Phase C"],
+            ["Voice + language", "Very high", "Medium–High", "Phase C/D"],
+            ["Expert escalation", "High", "Medium", "Phase D"],
+            ["Phone calls", "Medium (niche)", "High", "Phase D (pilot)"],
+            ["Self-improvement", "Indirect", "High", "Phase E (last)"],
+        ]),
+
+        ("h1", "6. Risks to the Value (and How We Protect It)"),
+        ("bul", [
+            "**Message fatigue** — too much proactive contact becomes spam. Protected by frequency caps, "
+            "quiet hours, and opt-down.",
+            "**Trust erosion** — one bad or biased proactive message costs more than many good ones. "
+            "Protected by the risk taxonomy, human-checked advice, and clear sponsor disclosure.",
+            "**Over-automation** — automating high-stakes advice invites harm. Protected by the Policy "
+            "Engine keeping humans in the loop above the risk line.",
+            "**Bad profile data** → confident wrong advice. Protected by data-quality checks before "
+            "personalization.",
+        ]),
+
+        ("h1", "7. The North Star"),
+        ("p", "AgriFriend at its best is a trusted farming companion that quietly runs itself, reaches "
+              "each farmer with the right thing at the right time in their own language, knows when to "
+              "hand off to a human, and gets a little better every season — all within guardrails that "
+              "keep it safe, consented, and honest. Autonomy is the means; the farmer's trust is the "
+              "product."),
+    ]
+    s = [
+        ("h1", "Enhancements & Value — In Brief"),
+        ("p", "Autonomy turns AgriFriend from a **tool that waits** into a **companion that shows up** — "
+              "before the storm, when pest risk spikes, at the crop stage that matters. That pull→push "
+              "shift is where the added value lives, for farmer and business alike."),
+        ("img", "19_value_map.png", "Value on both sides, protected by trust guardrails."),
+        ("h2", "Top enhancements"),
+        ("bul", [
+            "**Weather & pest early-warning**, **crop-stage nudges**, **proactive follow-ups** — right thing, right time.",
+            "**Voice + local language** — unlocks the low-literacy majority (biggest adoption lever).",
+            "**Expert escalation & calls** — a human when it matters.",
+            "**Self-healing ops** — less downtime, lower cost.",
+        ]),
+        ("h2", "Why it matters to the business"),
+        ("bul", [
+            "Higher engagement & retention; **sponsorable proactive reach**; measurable extension for FPOs/gov.",
+            "It directly strengthens the B2B monetization thesis — proactive, consented reach is what sponsors pay for.",
+        ]),
+        ("callout", "warn", "Value depends on trust",
+         "Over-messaging or one bad proactive message costs more than many good ones. Frequency caps, "
+         "consent, and human-checked advice are what protect the value."),
+    ]
+    return d, s
+
+
 BUILDERS = {
     "01_Original_Repo": doc01,
     "02_What_We_Built": doc02,
@@ -850,4 +1140,6 @@ BUILDERS = {
     "04_Risks_and_Readiness": doc04,
     "05_GoToMarket_Monetization": doc05,
     "06_Test_Results_Next_Steps": doc06,
+    "07_Autonomy_Plan": doc07,
+    "08_Enhancements_and_Value": doc08,
 }

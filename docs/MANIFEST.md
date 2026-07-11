@@ -14,8 +14,10 @@
 - Production Readiness, Risks & Mitigations
 - Go-to-Market, Monetization & Growth
 - Test Results & Next Steps
+- The Autonomy Plan
+- Enhancements & Value
 
-## Files produced: 12 docx, 12 pdf
+## Files produced: 16 docx, 16 pdf
 
 ## Reproduce
 ```

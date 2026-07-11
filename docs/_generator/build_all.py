@@ -23,6 +23,8 @@ PRETTY = {
     "04_Risks_and_Readiness": "04 - Production Readiness & Risks",
     "05_GoToMarket_Monetization": "05 - Go-to-Market & Monetization",
     "06_Test_Results_Next_Steps": "06 - Test Results & Next Steps",
+    "07_Autonomy_Plan": "07 - The Autonomy Plan",
+    "08_Enhancements_and_Value": "08 - Enhancements & Value",
 }
 
 
