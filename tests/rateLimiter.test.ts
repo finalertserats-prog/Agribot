@@ -27,6 +27,16 @@ describe("RateLimiter", () => {
     expect(rl.allow("user", 62_000)).toBe(true);
   });
 
+  it("wouldAllow peeks without consuming budget", () => {
+    const rl = new RateLimiter(1, 60_000);
+    // Peeking many times must not exhaust the single-slot window.
+    expect(rl.wouldAllow("user", 1000)).toBe(true);
+    expect(rl.wouldAllow("user", 1000)).toBe(true);
+    // A real attempt consumes it; then a peek reports exhausted.
+    rl.allow("user", 1000);
+    expect(rl.wouldAllow("user", 1000)).toBe(false);
+  });
+
   it("sweep drops keys with no recent hits", () => {
     const rl = new RateLimiter(1, 60_000);
     rl.allow("user", 1000);

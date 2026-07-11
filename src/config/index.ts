@@ -70,6 +70,10 @@ export const config = {
   memoryQueryMinEntries: 2,
   // Rate limiting (per user)
   rateLimitPerMinute: 8,
+  // Global cost ceiling across ALL users — a hard cap on Gemini spend so a
+  // flood of distinct users can't run up an unbounded bill.
+  globalRateLimitPerMinute: 60,
+  globalRateLimitPerDay: 1500,
   // Image guard
   maxImageBytes: 8 * 1024 * 1024, // 8 MB
   systemPrompt: SYSTEM_PROMPT,

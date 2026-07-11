@@ -43,7 +43,7 @@ export function framedContext(context?: string): string {
  * Retry a Gemini call on transient rate-limit (429) errors with exponential
  * backoff. Non-rate-limit errors propagate immediately.
  */
-async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+export async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
     try {

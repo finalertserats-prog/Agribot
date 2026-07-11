@@ -28,4 +28,26 @@ describe("SeenCache", () => {
     cache.check("c");
     expect(cache.size).toBe(2);
   });
+
+  it("seed() restores keys so a restart does not reprocess them", () => {
+    const cache = new SeenCache(10);
+    cache.seed(["x", "y"]);
+    expect(cache.check("x")).toBe(true);
+    expect(cache.check("z")).toBe(false);
+  });
+
+  it("seed() respects capacity, keeping the newest keys", () => {
+    const cache = new SeenCache(2);
+    cache.seed(["a", "b", "c"]);
+    expect(cache.size).toBe(2);
+    expect(cache.check("c")).toBe(true);
+    expect(cache.check("a")).toBe(false); // oldest was evicted
+  });
+
+  it("snapshot() returns keys oldest-first for persistence", () => {
+    const cache = new SeenCache(10);
+    cache.check("a");
+    cache.check("b");
+    expect(cache.snapshot()).toEqual(["a", "b"]);
+  });
 });

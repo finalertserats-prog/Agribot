@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { config } from "../config";
 import { atomicWrite, createDebouncedSaver, type DebouncedSaver } from "./persist";
+import { withRetry } from "./gemini";
 import { logger } from "./logger";
 import path from "path";
 import fs from "fs";
@@ -64,7 +65,8 @@ export async function flushMemory(): Promise<void> {
 }
 
 async function getEmbedding(text: string): Promise<number[]> {
-  const result = await embeddingModel.embedContent(text);
+  // Retry on transient 429s so a rate-limit blip doesn't silently drop a memory.
+  const result = await withRetry(() => embeddingModel.embedContent(text));
   return result.embedding.values;
 }
 

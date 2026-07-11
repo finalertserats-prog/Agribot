@@ -24,4 +24,22 @@ export class SeenCache {
   get size(): number {
     return this.set.size;
   }
+
+  /** Seed the cache from persisted keys (e.g. on startup). Order preserved. */
+  seed(keys: string[]): void {
+    for (const key of keys) {
+      if (this.set.has(key)) continue;
+      this.set.add(key);
+      this.order.push(key);
+    }
+    while (this.order.length > this.capacity) {
+      const evicted = this.order.shift();
+      if (evicted !== undefined) this.set.delete(evicted);
+    }
+  }
+
+  /** Current keys, oldest first — for persistence. */
+  snapshot(): string[] {
+    return [...this.order];
+  }
 }

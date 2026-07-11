@@ -11,6 +11,20 @@ export class RateLimiter {
   ) {}
 
   /**
+   * Non-mutating check: would an attempt for `key` be allowed right now?
+   * Use this to test several limiters together before consuming any of them.
+   */
+  wouldAllow(key: string, now: number = Date.now()): boolean {
+    const cutoff = now - this.windowMs;
+    const recent = (this.hits.get(key) ?? []).filter((t) => t > cutoff);
+    // Write back the pruned array so stale timestamps don't accumulate between
+    // sweeps when a key is peeked far more often than it is consumed.
+    if (recent.length > 0) this.hits.set(key, recent);
+    else this.hits.delete(key);
+    return recent.length < this.maxPerWindow;
+  }
+
+  /**
    * Record an attempt for `key`. Returns true if it is allowed (under the
    * limit), false if the key has exhausted its window.
    */

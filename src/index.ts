@@ -1,7 +1,7 @@
 import { proto, WASocket, downloadContentFromMessage, DownloadableMessage } from "@whiskeysockets/baileys";
 import { config } from "./config";
 import { logger } from "./lib/logger";
-import { connectWhatsApp } from "./lib/whatsapp";
+import { connectWhatsApp, flushSeen } from "./lib/whatsapp";
 import {
   initGemini,
   generateTextResponse,
@@ -28,14 +28,25 @@ import {
 import { RateLimiter } from "./lib/rateLimiter";
 
 const rateLimiter = new RateLimiter(config.rateLimitPerMinute);
+const globalMinuteLimiter = new RateLimiter(config.globalRateLimitPerMinute, 60_000);
+const globalDayLimiter = new RateLimiter(config.globalRateLimitPerDay, 24 * 60 * 60_000);
 // Periodically release memory held for idle users.
-setInterval(() => rateLimiter.sweep(), 5 * 60_000).unref();
+setInterval(() => {
+  rateLimiter.sweep();
+  globalMinuteLimiter.sweep();
+  globalDayLimiter.sweep();
+}, 5 * 60_000).unref();
 
 // Track fire-and-forget persistence so shutdown can await it before flushing.
 const backgroundTasks = new Set<Promise<void>>();
 function trackBackground(task: Promise<void>): void {
   backgroundTasks.add(task);
-  void task.finally(() => backgroundTasks.delete(task));
+  // .catch is essential: an unhandled rejection here would crash the process
+  // (and crash-loop under PM2). persistAndEnrich already handles its own
+  // errors, but this is the last-resort guard on the tracking chain.
+  void task
+    .catch((err) => logger.error({ err }, "Background persistence task failed"))
+    .finally(() => backgroundTasks.delete(task));
 }
 
 async function downloadImage(
@@ -45,7 +56,13 @@ async function downloadImage(
   if (!m?.imageMessage) return null;
 
   try {
-    const stream = await downloadContentFromMessage(m as DownloadableMessage, "image");
+    // Must pass the media message (imageMessage: {mediaKey,directPath,url}),
+    // not the whole IMessage — the latter lacks those fields and the download
+    // silently fails. Guarded above, so imageMessage is defined here.
+    const stream = await downloadContentFromMessage(
+      m.imageMessage as unknown as DownloadableMessage,
+      "image"
+    );
     const chunks: Buffer[] = [];
     let total = 0;
     for await (const chunk of stream) {
@@ -75,7 +92,11 @@ async function persistAndEnrich(
   response: string,
   hasImage: boolean
 ): Promise<void> {
-  saveInteraction(senderJid, remoteJid, pushName, text || "[image]", response, hasImage);
+  try {
+    saveInteraction(senderJid, remoteJid, pushName, text || "[image]", response, hasImage);
+  } catch (err) {
+    logger.error({ err }, "saveInteraction failed (non-critical)");
+  }
 
   try {
     const memText = `User ${pushName}: ${text || "[shared a plant image]"} | AgriFriend: ${response}`;
@@ -138,6 +159,24 @@ async function handleMessage(
     });
     return;
   }
+
+  // Global cost ceiling across ALL users — a hard cap on total Gemini spend so a
+  // flood of distinct users can't bypass the per-user limit and run up the bill.
+  // Peek both limiters first, then consume both only if both pass, so a rejected
+  // request never burns one bucket's budget.
+  const nowMs = Date.now();
+  if (
+    !globalMinuteLimiter.wouldAllow("global", nowMs) ||
+    !globalDayLimiter.wouldAllow("global", nowMs)
+  ) {
+    logger.warn("Global Gemini rate ceiling hit — deferring reply");
+    await socket.sendMessage(remoteJid, {
+      text: "🌱 We're very busy right now — please try again a little later!",
+    });
+    return;
+  }
+  globalMinuteLimiter.allow("global", nowMs);
+  globalDayLimiter.allow("global", nowMs);
 
   // Domain guardrail — keyword fast-path (free), model fallback on a miss.
   // Images bypass entirely so Gemini can analyze the photo.
@@ -241,7 +280,7 @@ function registerShutdown(): void {
           "Drain timed out — some background writes may not have persisted"
         );
       }
-      await Promise.all([flushDB(), flushMemory()]);
+      await Promise.all([flushDB(), flushMemory(), flushSeen()]);
       process.exit(0);
     } catch (err) {
       // A flush failure means state may not have persisted — exit non-zero so
@@ -252,6 +291,17 @@ function registerShutdown(): void {
   };
   process.on("SIGINT", () => void shutdown("SIGINT"));
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
+  // Safety net: an unhandled rejection should NOT crash the bot — log and keep
+  // serving. An uncaught exception is unrecoverable, so flush state and exit so
+  // PM2 restarts cleanly rather than crash-looping with unpersisted data.
+  process.on("unhandledRejection", (reason) => {
+    logger.error({ reason }, "Unhandled promise rejection — continuing");
+  });
+  process.on("uncaughtException", (err) => {
+    logger.error({ err }, "Uncaught exception — flushing and exiting");
+    void shutdown("uncaughtException");
+  });
 }
 
 async function main(): Promise<void> {
