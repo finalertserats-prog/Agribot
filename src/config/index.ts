@@ -42,6 +42,8 @@ const envSchema = z.object({
   // Ops Copilot (optional).
   OPS_RESTART_COMMAND: z.string().optional(),
   OPS_WEBHOOK_URL: z.string().url().optional(),
+  // Policy Engine kill switch (optional; "false" disables proactive outbound).
+  PROACTIVE_ENABLED: z.enum(["true", "false"]).optional(),
 });
 
 function loadEnv(): z.infer<typeof envSchema> {
@@ -93,6 +95,18 @@ export const config = {
     restartWindowMs: 10 * 60_000, // 10 minutes
     errorRateAlert: 10, // errors within a heartbeat window => alert
     webhookUrl: env.OPS_WEBHOOK_URL, // optional alert sink (NOT WhatsApp)
+  },
+  // Policy Engine (Phase A) — the deterministic gate for all proactive outbound.
+  policy: {
+    // Kill switch: when false, ALL proactive sends are suppressed (reactive-only).
+    // Flip off if WhatsApp quality-rating drops or the number is restricted.
+    proactiveEnabled: env.PROACTIVE_ENABLED !== "false",
+    maxPerFarmerPerDay: 3, // anti-fatigue frequency cap
+    quietHoursStart: 21, // 21:00 local — no proactive sends
+    quietHoursEnd: 7, // ..until 07:00 local
+    defaultTzOffsetMinutes: 330, // IST (+5:30) unless a farmer overrides
+    maxPerTenantPerDay: 5000, // per-tenant daily quota
+    auditPath: path.join(env.DATA_DIR, "policy-audit.jsonl"),
   },
 } as const;
 
