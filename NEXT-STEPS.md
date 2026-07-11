@@ -87,6 +87,42 @@ sends via quiet hours.
 150 tests, 84% coverage. **Remaining = item 1 only:** WhatsApp Business Platform account
 + Meta-approved templates + wiring the real transport (operator task).
 
+## LLM Council — Full Readiness Review (2026-07-11) — ACTION LIST FOR NEXT SESSION
+
+**Unanimous verdict (Opus + Sonnet + Codex + Gemini):** PILOT-READY (small, supervised,
+reactive) — **NOT production-ready for autonomous outbound.** Architecture is excellent
+("Policy Engine is the strongest file in the repo"); the *implementation* of the safety
+layer is a scaffold. 150 tests / 84% coverage / never run live at scale.
+
+**Two findings verified this session (real gaps, not opinion):**
+- `isOptOutMessage` is defined + tested but **called NOWHERE in the live path** — a farmer
+  texting "STOP" does not opt out. (grep: only in `consent.ts` + `policy/index.ts`.)
+- **No `tenantId` column** in the reactive DB (`src/lib/database.ts`) — "multi-tenant" is
+  real only in the proactive half; the reactive layer is single-tenant (one socket/DB/vectors).
+
+**Prioritized action list (do in this order):**
+1. **Wire opt-out into the live path** (small, high-value bug fix): call `isOptOutMessage`
+   in `handler.ts`; on match, flip a *persisted* consent record. Bridge reactive `senderJid`
+   ↔ proactive consent store.
+2. **Persist the safety-critical stores** (THE #1 blocker, all reviewers): move ConsentStore,
+   IdempotencyStore, FrequencyGuard, ApprovalQueue, DeliveryStore, OutcomeStore from in-memory
+   Map/Set to a real DB (Postgres). Idempotency via `UNIQUE(tenant,farmer,template,day)`;
+   atomic counter writes for caps; consent = durable source of truth. Add a test that proves
+   an opted-out farmer can't receive a proactive msg AFTER a process restart.
+3. **Make the reactive layer genuinely multi-tenant** — `tenantId` on users/interactions,
+   per-tenant isolation, per-tenant config/quota.
+4. **Wire the real WhatsAppCloudTransport** (after operator WhatsApp Business Platform setup —
+   see `docs/OPERATOR-RUNBOOK.md`).
+5. **Load/scale test** + migrate `sql.js` (whole-DB rewrite) + flat-JSON vector store to
+   Postgres + a real vector DB before real volume.
+6. **India layer** (Gemini): regional languages + voice; agronomist-reviewed content mapped to
+   State Ag University package-of-practices; pesticide-dosage liability guards; disclaimers.
+
+**THE non-negotiable (unanimous) before any real farmer gets an autonomous message:**
+Durable, atomic, tenant-scoped consent + inbound opt-out wired end-to-end, proven to survive
+a restart. (Items 1 + 2 above.)
+
 ## To resume
+- Read this file + `HARDENING.md` + `docs/OPERATOR-RUNBOOK.md`.
+- Start with action #1 (wire opt-out), then #2 (persist safety state).
 - Reopen decision: `node ~/.claude/scripts/disagreement.js --open`
-- Resolve when decided: `node ~/.claude/scripts/disagreement.js --resolve DIS-001 --winner <peer> --reason "..."`
