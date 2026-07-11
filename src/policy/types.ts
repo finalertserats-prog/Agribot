@@ -26,6 +26,12 @@ export interface OutboundCandidate {
   approvedBy?: string;
   /** Estimated cost units for budgeting (e.g. WhatsApp conversation + model). */
   estimatedCost?: number;
+  /**
+   * "crisis" = genuine emergency (outbreak, flood, heatwave). Crisis messages
+   * bypass quiet-hours and the anti-fatigue frequency cap, but STILL require
+   * consent, an approved template, tenant quota, and (for high-risk) approval.
+   */
+  priority?: "normal" | "crisis";
 }
 
 /** The result of evaluating a candidate. Always produces an audit record. */
@@ -50,4 +56,5 @@ export interface AuditRecord {
   reason: string;
   approvedBy?: string;
   estimatedCost?: number;
+  priority?: "normal" | "crisis";
 }

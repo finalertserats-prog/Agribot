@@ -17,6 +17,14 @@ export interface WeatherAlert {
   area: string;
   alert: string; // e.g. "heavy rain expected tomorrow"
   action: string; // e.g. "delay spraying"
+  crisis?: boolean; // outbreak/flood/heatwave -> priority path
+}
+
+export interface MarketPrice {
+  crop: string;
+  market: string; // mandi / market name
+  price: string; // e.g. "₹18/kg"
+  note?: string; // e.g. "up 8% this week"
 }
 
 /** Everything a trigger needs for one run. */
@@ -24,6 +32,7 @@ export interface TriggerContext {
   now: number;
   farmers: FarmerRecord[];
   weather: WeatherAlert[];
+  market: MarketPrice[];
 }
 
 /** A rule that turns current state into proactive message candidates. */
@@ -38,6 +47,9 @@ export interface FarmerSource {
 }
 export interface WeatherSource {
   alerts(): WeatherAlert[];
+}
+export interface MarketSource {
+  prices(): MarketPrice[];
 }
 
 export interface RunSummary {

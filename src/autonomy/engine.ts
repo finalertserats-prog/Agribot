@@ -5,6 +5,7 @@ import type {
   Trigger,
   FarmerSource,
   WeatherSource,
+  MarketSource,
   RunSummary,
 } from "./types";
 import type { Transport } from "./transport";
@@ -19,6 +20,7 @@ export interface AutonomyDeps {
   delivery: DeliveryStore;
   farmers: FarmerSource;
   weather: WeatherSource;
+  market?: MarketSource;
   now?: () => number;
 }
 
@@ -39,6 +41,7 @@ export class AutonomyEngine {
       now,
       farmers: this.deps.farmers.list(),
       weather: this.deps.weather.alerts(),
+      market: this.deps.market?.prices() ?? [],
     };
     const candidates = this.deps.triggers.flatMap((t) => t.produce(ctx));
     const summary: RunSummary = {

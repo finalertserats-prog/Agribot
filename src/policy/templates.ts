@@ -60,6 +60,23 @@ const TEMPLATES: Template[] = [
     requiredVars: ["name", "crop", "finding", "step"],
     maxVarLen: MAX_VAR_LEN,
   },
+  {
+    id: "market_price.en.v1",
+    messageType: "market_price",
+    language: "en",
+    body: "📈 {{crop}} price at {{market}} today: {{price}}. {{note}}",
+    requiredVars: ["crop", "market", "price"], // note is optional
+    maxVarLen: MAX_VAR_LEN,
+  },
+  {
+    // Crisis + high-risk: needs a pre-authorized expert approval; sent priority.
+    id: "outbreak_alert.en.v1",
+    messageType: "outbreak_alert",
+    language: "en",
+    body: "🚨 Alert for {{area}}: {{threat}}. Act now: {{action}}",
+    requiredVars: ["area", "threat", "action"],
+    maxVarLen: MAX_VAR_LEN,
+  },
 ];
 
 const byId = new Map(TEMPLATES.map((t) => [t.id, t]));

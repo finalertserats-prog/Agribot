@@ -6,9 +6,16 @@ import { IdempotencyStore } from "../src/policy/idempotency";
 import { MemoryAuditSink } from "../src/policy/audit";
 import type { OutboundCandidate } from "../src/policy/types";
 import { AutonomyEngine } from "../src/autonomy/engine";
-import { DEFAULT_TRIGGERS, seasonalTipTrigger, cropStageTrigger } from "../src/autonomy/triggers";
+import {
+  DEFAULT_TRIGGERS,
+  seasonalTipTrigger,
+  cropStageTrigger,
+  marketPriceTrigger,
+} from "../src/autonomy/triggers";
 import { ApprovalQueue } from "../src/autonomy/approvalQueue";
 import { DeliveryStore } from "../src/autonomy/delivery";
+import { EscalationService } from "../src/autonomy/escalation";
+import { CallGuard } from "../src/autonomy/call";
 import { InMemoryFarmerSource, StaticWeatherSource } from "../src/autonomy/index";
 import type { Transport, SendResult } from "../src/autonomy/transport";
 import type { FarmerRecord, WeatherAlert, Trigger } from "../src/autonomy/types";
@@ -67,21 +74,58 @@ function makeAutonomy(
 }
 
 // ---------- triggers ----------
+const ctx = (farmers: FarmerRecord[], weather: WeatherAlert[] = [], market: any[] = []) => ({
+  now: NOW, farmers, weather, market,
+});
+
 describe("triggers", () => {
   it("seasonal tip fires for a farmer with a crop", () => {
-    const c = seasonalTipTrigger.produce({ now: NOW, farmers: [farmer()], weather: [] });
+    const c = seasonalTipTrigger.produce(ctx([farmer()]));
     expect(c).toHaveLength(1);
     expect(c[0].messageType).toBe("seasonal_tip");
   });
   it("skips farmers with incomplete profiles (data quality)", () => {
-    const c = seasonalTipTrigger.produce({ now: NOW, farmers: [farmer({ crop: undefined })], weather: [] });
-    expect(c).toHaveLength(0);
+    expect(seasonalTipTrigger.produce(ctx([farmer({ crop: undefined })]))).toHaveLength(0);
   });
   it("crop-stage trigger needs a stage", () => {
-    expect(cropStageTrigger.produce({ now: NOW, farmers: [farmer()], weather: [] })).toHaveLength(0);
-    expect(
-      cropStageTrigger.produce({ now: NOW, farmers: [farmer({ cropStage: "flowering" })], weather: [] })
-    ).toHaveLength(1);
+    expect(cropStageTrigger.produce(ctx([farmer()]))).toHaveLength(0);
+    expect(cropStageTrigger.produce(ctx([farmer({ cropStage: "flowering" })]))).toHaveLength(1);
+  });
+  it("market trigger targets farmers growing the priced crop", () => {
+    const c = marketPriceTrigger.produce(
+      ctx([farmer({ crop: "tomato" })], [], [{ crop: "tomato", market: "Pune", price: "Rs18/kg", note: "up 8%" }])
+    );
+    expect(c).toHaveLength(1);
+    expect(c[0].messageType).toBe("market_price");
+  });
+});
+
+describe("EscalationService", () => {
+  it("escalates, lists pending, notifies, and resolves", () => {
+    const notified: unknown[] = [];
+    const e = new EscalationService((r) => notified.push(r));
+    const r = e.escalate("f1", "t1", "serious disease reported");
+    expect(e.pending()).toHaveLength(1);
+    expect(notified).toHaveLength(1);
+    expect(e.resolve(r.id)).toBe(true);
+    expect(e.pending()).toHaveLength(0);
+  });
+});
+
+describe("CallGuard", () => {
+  it("requires explicit call consent, scoped per tenant+farmer", () => {
+    const g = new CallGuard(10);
+    expect(g.canCall("t1", "f1")).toBe(false);
+    g.grantCallConsent("t1", "f1");
+    expect(g.canCall("t1", "f1")).toBe(true);
+    expect(g.canCall("t2", "f1")).toBe(false); // different tenant, no leak
+  });
+  it("enforces a daily call budget", () => {
+    const g = new CallGuard(1);
+    g.grantCallConsent("t1", "f1");
+    expect(g.canCall("t1", "f1")).toBe(true);
+    g.recordCall();
+    expect(g.canCall("t1", "f1")).toBe(false);
   });
 });
 

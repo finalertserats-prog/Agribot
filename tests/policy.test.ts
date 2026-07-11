@@ -210,6 +210,40 @@ describe("PolicyEngine", () => {
     expect(capped.engine.evaluate(candidate()).reason).toContain("tenant");
   });
 
+  // A crisis-eligible candidate (weather_alert is whitelisted for the crisis path).
+  const crisisCand = (priority: "normal" | "crisis") =>
+    candidate({
+      messageType: "weather_alert",
+      templateId: "weather_alert.en.v1",
+      vars: { area: "Pune", alert: "flood", action: "move livestock" },
+      priority,
+    });
+
+  it("crisis priority bypasses quiet hours", () => {
+    const quiet = makeEngine({ quietHoursStart: 0, quietHoursEnd: 24 }); // always quiet
+    quiet.consent.grant("f1", "x");
+    expect(quiet.engine.evaluate(crisisCand("normal")).decision).toBe("suppress");
+    expect(quiet.engine.evaluate(crisisCand("crisis")).decision).toBe("allow");
+  });
+
+  it("crisis priority bypasses the per-farmer frequency cap", () => {
+    const capped = makeEngine({}, 0); // farmerCap 0
+    capped.consent.grant("f1", "x");
+    expect(capped.engine.evaluate(crisisCand("crisis")).decision).toBe("allow");
+  });
+
+  it("a non-eligible type cannot use the crisis fast-path", () => {
+    const quiet = makeEngine({ quietHoursStart: 0, quietHoursEnd: 24 });
+    quiet.consent.grant("f1", "x");
+    // seasonal_tip is NOT crisis-eligible -> crisis flag ignored -> still suppressed
+    expect(quiet.engine.evaluate(candidate({ priority: "crisis" })).decision).toBe("suppress");
+  });
+
+  it("crisis still requires consent (no bypass of consent)", () => {
+    const e = makeEngine({ quietHoursStart: 0, quietHoursEnd: 24 });
+    expect(e.engine.evaluate(crisisCand("crisis")).decision).toBe("suppress");
+  });
+
   it("records an audit entry for every decision", () => {
     ctx.engine.evaluate(candidate());
     ctx.engine.evaluate(candidate({ language: "ta" }));

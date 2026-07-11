@@ -1,5 +1,5 @@
 import type { OutboundCandidate, PolicyResult, AuditRecord, Decision } from "./types";
-import { riskOf, requiresApproval } from "./risk";
+import { riskOf, requiresApproval, canBeCrisis } from "./risk";
 import { isApprovedTemplate, renderTemplate } from "./templates";
 import { ConsentStore } from "./consent";
 import { FrequencyGuard, isQuietHours } from "./frequency";
@@ -38,6 +38,9 @@ export class PolicyEngine {
     const risk = riskOf(candidate.messageType);
     const tz = this.deps.tzOffsetFor?.(candidate.farmerId) ?? config.defaultTzOffsetMinutes;
 
+    // Honor crisis ONLY for whitelisted emergency types — a normal message
+    // can't claim crisis to skip quiet hours / fatigue caps.
+    const isCrisis = candidate.priority === "crisis" && canBeCrisis(candidate.messageType);
     const finish = (decision: Decision, reason: string, renderedText?: string): PolicyResult => {
       const record: AuditRecord = {
         at: new Date(now).toISOString(),
@@ -51,6 +54,7 @@ export class PolicyEngine {
         reason,
         approvedBy: candidate.approvedBy,
         estimatedCost: candidate.estimatedCost,
+        priority: candidate.priority,
       };
       audit.record(record);
       return { decision, reason, riskClass: risk, audit: record, renderedText };
@@ -80,13 +84,14 @@ export class PolicyEngine {
     const rendered = renderTemplate(candidate.templateId, candidate.vars);
     if (!rendered.ok) return finish("suppress", `template render failed: ${rendered.error}`);
 
-    // 7. Quiet hours (farmer-local).
-    if (isQuietHours(now, tz, config.quietHoursStart, config.quietHoursEnd)) {
+    // 7. Quiet hours (farmer-local). Crisis alerts bypass — a flood warning at
+    //    2am must still go out.
+    if (!isCrisis && isQuietHours(now, tz, config.quietHoursStart, config.quietHoursEnd)) {
       return finish("suppress", "quiet hours");
     }
 
-    // 8. Per-farmer anti-fatigue cap.
-    if (!frequency.withinFarmerCap(candidate.farmerId, now)) {
+    // 8. Per-farmer anti-fatigue cap. Crisis alerts bypass the fatigue cap.
+    if (!isCrisis && !frequency.withinFarmerCap(candidate.farmerId, now)) {
       return finish("suppress", "per-farmer frequency cap reached");
     }
 

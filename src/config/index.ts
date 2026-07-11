@@ -112,6 +112,7 @@ export const config = {
   // proactive candidates and routes them through the Policy Engine.
   autonomy: {
     schedulerIntervalMs: 60 * 60_000, // run triggers hourly
+    maxCallsPerDay: 200, // global cap on autonomous phone calls (cost guard)
   },
 } as const;
 

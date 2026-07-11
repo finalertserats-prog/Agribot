@@ -23,3 +23,12 @@ export function riskOf(type: MessageType): RiskClass {
 export function requiresApproval(type: MessageType): boolean {
   return RISK[type] === "high";
 }
+
+// Only genuine emergency types may use the crisis fast-path (bypassing quiet
+// hours + fatigue cap). This stops a buggy/abusive trigger from crisis-tagging
+// routine outreach to escape user-protection controls.
+const CRISIS_ELIGIBLE = new Set<MessageType>(["outbreak_alert", "weather_alert"]);
+
+export function canBeCrisis(type: MessageType): boolean {
+  return CRISIS_ELIGIBLE.has(type);
+}

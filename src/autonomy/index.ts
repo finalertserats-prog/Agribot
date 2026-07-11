@@ -6,14 +6,31 @@ import { DEFAULT_TRIGGERS } from "./triggers";
 import { ApprovalQueue } from "./approvalQueue";
 import { DeliveryStore } from "./delivery";
 import { LoggingTransport, type Transport } from "./transport";
-import type { FarmerRecord, FarmerSource, WeatherAlert, WeatherSource } from "./types";
+import { EscalationService } from "./escalation";
+import { CallGuard, StubCallTransport } from "./call";
+import type {
+  FarmerRecord,
+  FarmerSource,
+  WeatherAlert,
+  WeatherSource,
+  MarketPrice,
+  MarketSource,
+} from "./types";
 
 export * from "./types";
 export { AutonomyEngine } from "./engine";
-export { DEFAULT_TRIGGERS, seasonalTipTrigger, cropStageTrigger, weatherAlertTrigger } from "./triggers";
+export {
+  DEFAULT_TRIGGERS,
+  seasonalTipTrigger,
+  cropStageTrigger,
+  weatherAlertTrigger,
+  marketPriceTrigger,
+} from "./triggers";
 export { ApprovalQueue } from "./approvalQueue";
 export { DeliveryStore } from "./delivery";
 export { LoggingTransport, WhatsAppCloudTransport } from "./transport";
+export { EscalationService } from "./escalation";
+export { CallGuard, StubCallTransport } from "./call";
 
 /** Simple in-memory sources for the scaffold; production reads the DB / weather API. */
 export class InMemoryFarmerSource implements FarmerSource {
@@ -28,10 +45,17 @@ export class StaticWeatherSource implements WeatherSource {
     return this.current;
   }
 }
+export class StaticMarketSource implements MarketSource {
+  constructor(private readonly current: MarketPrice[] = []) {}
+  prices(): MarketPrice[] {
+    return this.current;
+  }
+}
 
 export interface AutonomySources {
   farmers: FarmerSource;
   weather: WeatherSource;
+  market?: MarketSource;
   transport?: Transport;
 }
 
@@ -56,6 +80,9 @@ export function createAutonomyEngine(sources: AutonomySources) {
   });
   const queue = new ApprovalQueue();
   const delivery = new DeliveryStore();
+  const escalation = new EscalationService();
+  const callGuard = new CallGuard(config.autonomy.maxCallsPerDay);
+  const callTransport = new StubCallTransport();
   const engine = new AutonomyEngine({
     policy,
     triggers: DEFAULT_TRIGGERS,
@@ -64,8 +91,12 @@ export function createAutonomyEngine(sources: AutonomySources) {
     delivery,
     farmers: sources.farmers,
     weather: sources.weather,
+    market: sources.market,
   });
-  return { engine, policy, queue, delivery, consent, frequency, idempotency, audit };
+  return {
+    engine, policy, queue, delivery, consent, frequency, idempotency, audit,
+    escalation, callGuard, callTransport,
+  };
 }
 
 // Standalone entry: start the proactive scheduler. A real deployment injects a

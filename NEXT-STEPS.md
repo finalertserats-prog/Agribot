@@ -69,7 +69,23 @@ Platform account + Meta-approved templates.
 Policy Engine → LoggingTransport (stub; real WhatsApp Business Platform transport is a
 placeholder) → commitSend on success. Approval queue for high-risk, delivery-feedback
 anti-fatigue, scheduler (`npm run autonomy`). Live-demoed: correctly suppressed night-time
-sends via quiet hours. 134 tests, 83% coverage. Next: Phase D (APIs/calls), E (self-improve).
+sends via quiet hours.
+
+## Autonomy — Phase D (Agentic Actions) ✅ DONE (code side)
+- Market-price source + trigger + template (indexed by crop, template-gated).
+- Crisis/priority path: outbreak/weather crisis bypasses quiet-hours + fatigue cap
+  (whitelisted types only; still consent/template/quota-gated).
+- Expert escalation service (route high-stakes cases to a human).
+- Phone-call transport interface + stub + CallGuard (separate call consent per
+  tenant+farmer, daily cost budget). Real telephony = operator setup.
+
+## Autonomy — Phase E (Self-Improvement) ✅ DONE (governed)
+`src/learning/`: OutcomeStore (honest labels, 'unclear' excluded), SkillGovernance
+(propose→approve→rollback, never auto-applies, frozen copies), Experiment (deterministic
++ guardrail halt-to-control if agronomic quality drops).
+
+150 tests, 84% coverage. **Remaining = item 1 only:** WhatsApp Business Platform account
++ Meta-approved templates + wiring the real transport (operator task).
 
 ## To resume
 - Reopen decision: `node ~/.claude/scripts/disagreement.js --open`
