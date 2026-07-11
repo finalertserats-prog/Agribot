@@ -1,6 +1,8 @@
 import initSqlJs from "sql.js";
 import type { Database as SqlJsDatabase } from "sql.js";
 import { config } from "../config";
+import { atomicWrite, createDebouncedSaver, type DebouncedSaver } from "./persist";
+import { logger } from "./logger";
 import path from "path";
 import fs from "fs";
 
@@ -28,6 +30,7 @@ export interface Interaction {
 
 let db: SqlJsDatabase;
 let dbPath: string;
+let saver: DebouncedSaver;
 
 export async function initDB(): Promise<void> {
   const dir = path.dirname(config.dbPath);
@@ -69,13 +72,22 @@ export async function initDB(): Promise<void> {
     );
   `);
 
-  saveDB();
+  saver = createDebouncedSaver(async () => {
+    const data = db.export();
+    await atomicWrite(dbPath, data);
+  }, config.persistDebounceMs);
+
+  // First write is immediate so the schema is on disk even if we crash early.
+  await atomicWrite(dbPath, db.export());
 }
 
 function saveDB(): void {
-  const data = db.export();
-  const buffer = Buffer.from(data);
-  fs.writeFileSync(dbPath, buffer);
+  saver.schedule();
+}
+
+/** Flush any pending DB write to disk. Call on graceful shutdown. */
+export async function flushDB(): Promise<void> {
+  if (saver) await saver.flush();
 }
 
 export function upsertUser(
@@ -102,6 +114,79 @@ export function upsertUser(
     );
   }
 
+  saveDB();
+}
+
+const MAX_PROFILE_FIELD = 120;
+
+/**
+ * Profile fields are model-extracted from untrusted user text and later
+ * injected back into LLM prompts. Sanitize to blunt stored prompt-injection:
+ * strip control chars/newlines, collapse whitespace, and cap length.
+ */
+export function sanitizeProfileField(value: string | undefined): string {
+  if (!value) return "";
+  return value
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_PROFILE_FIELD);
+}
+
+/**
+ * Union new comma-separated facts into the existing set, de-duplicated
+ * case-insensitively and length-capped. Used for multi-valued fields
+ * (plants, issues) so opportunistic extraction accumulates rather than
+ * overwrites — a later "chilli" must not erase an earlier "tomatoes, okra".
+ */
+export function mergeFacts(existing: string, incoming: string | undefined): string {
+  const clean = sanitizeProfileField(incoming);
+  if (!clean) return existing;
+
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+  for (const tok of `${existing}, ${clean}`.split(",").map((t) => t.trim())) {
+    if (!tok) continue;
+    const key = tok.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    tokens.push(tok);
+  }
+  return tokens.join(", ").slice(0, MAX_PROFILE_FIELD);
+}
+
+/**
+ * Merge extracted profile facts into an existing user. Multi-valued fields
+ * (plants, issues) accumulate; location is single-valued so the most recent
+ * stated value wins. Blank/undefined fields leave stored values untouched so
+ * we never erase known context with an empty extraction.
+ */
+export function updateUserProfile(
+  id: string,
+  profile: Partial<Pick<UserRecord, "plants" | "issues" | "location">>
+): void {
+  const existing = getUser(id);
+  if (!existing) return;
+
+  const plants = mergeFacts(existing.plants, profile.plants);
+  const issues = mergeFacts(existing.issues, profile.issues);
+  const location = sanitizeProfileField(profile.location) || existing.location;
+
+  if (
+    plants === existing.plants &&
+    issues === existing.issues &&
+    location === existing.location
+  ) {
+    return; // nothing changed — skip the write
+  }
+
+  db.run("UPDATE users SET plants = ?, issues = ?, location = ? WHERE id = ?", [
+    plants,
+    issues,
+    location,
+    id,
+  ]);
   saveDB();
 }
 
@@ -138,8 +223,10 @@ export function saveInteraction(
 }
 
 export function getRecentInteractions(userId: string, limit = 5): Interaction[] {
+  // Order by id (autoincrement) rather than timestamp: rapid messages can share
+  // a millisecond timestamp, and SQLite leaves ties in undefined order.
   const result = db.exec(
-    "SELECT * FROM interactions WHERE userId = ? ORDER BY timestamp DESC LIMIT ?",
+    "SELECT * FROM interactions WHERE userId = ? ORDER BY id DESC LIMIT ?",
     [userId, limit]
   );
 
