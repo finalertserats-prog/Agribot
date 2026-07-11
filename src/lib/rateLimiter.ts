@@ -42,6 +42,11 @@ export class RateLimiter {
     return true;
   }
 
+  /** Clear all recorded hits. Intended for test isolation. */
+  reset(): void {
+    this.hits.clear();
+  }
+
   /** Drop stale keys to bound memory. Safe to call periodically. */
   sweep(now: number = Date.now()): void {
     const cutoff = now - this.windowMs;

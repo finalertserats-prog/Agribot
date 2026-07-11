@@ -10,7 +10,14 @@ export default defineConfig({
     env: {
       GEMINI_API_KEY: "test-key-for-vitest",
       DATA_DIR: path.join(os.tmpdir(), "agrifriend-test-data"),
+      LOG_LEVEL: "fatal", // quiet pino during tests (error-path tests log a lot)
     },
     include: ["tests/**/*.test.ts"],
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.ts"],
+      exclude: ["src/index.ts"], // bootstrap: side-effectful entrypoint, run via smoke test
+      thresholds: { statements: 80, branches: 70, functions: 80, lines: 80 },
+    },
   },
 });

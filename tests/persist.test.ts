@@ -59,4 +59,41 @@ describe("createDebouncedSaver", () => {
     const saver = createDebouncedSaver(async () => {}, 20);
     await expect(saver.flush()).resolves.toBeUndefined();
   });
+
+  it("flush rethrows a save failure (so data loss is not hidden)", async () => {
+    const saver = createDebouncedSaver(async () => {
+      throw new Error("disk full");
+    }, 10);
+    saver.schedule();
+    await expect(saver.flush()).rejects.toThrow("disk full");
+  });
+
+  it("a failed save does not wedge future saves", async () => {
+    let attempt = 0;
+    const saver = createDebouncedSaver(async () => {
+      attempt++;
+      if (attempt === 1) throw new Error("transient");
+    }, 10);
+    saver.schedule();
+    await saver.flush().catch(() => {}); // first fails
+    saver.schedule();
+    await expect(saver.flush()).resolves.toBeUndefined(); // second succeeds
+    expect(attempt).toBe(2);
+  });
+
+  it("serializes overlapping saves — never runs two at once", async () => {
+    let active = 0;
+    let maxActive = 0;
+    const saver = createDebouncedSaver(async () => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((r) => setTimeout(r, 15));
+      active--;
+    }, 5);
+    saver.schedule();
+    await new Promise((r) => setTimeout(r, 6)); // let first save start
+    saver.schedule(); // schedule a second while first may still run
+    await saver.flush();
+    expect(maxActive).toBe(1);
+  });
 });

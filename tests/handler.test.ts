@@ -1,0 +1,164 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { proto, WASocket } from "@whiskeysockets/baileys";
+
+// ---- mock the collaborator modules (domain helpers stay real) ----
+vi.mock("../src/lib/gemini", () => ({
+  generateTextResponse: vi.fn(async () => "Here is some farming advice 🌱"),
+  analyzeImage: vi.fn(async () => "Your plant looks healthy!"),
+  isFarmingTopic: vi.fn(async () => false),
+  extractProfile: vi.fn(async () => ({ plants: "", issues: "", location: "" })),
+}));
+vi.mock("../src/lib/database", () => ({
+  upsertUser: vi.fn(),
+  getUser: vi.fn(() => undefined),
+  updateUserProfile: vi.fn(),
+  saveInteraction: vi.fn(),
+  getRecentInteractions: vi.fn(() => []),
+}));
+vi.mock("../src/lib/memory", () => ({
+  storeMemory: vi.fn(async () => {}),
+  queryMemory: vi.fn(async () => []),
+}));
+vi.mock("@whiskeysockets/baileys", () => ({
+  downloadContentFromMessage: vi.fn(async function* () {
+    yield Buffer.from([1, 2, 3, 4]);
+  }),
+}));
+
+import { handleMessage, backgroundTasks, resetForTests } from "../src/handler";
+import { generateTextResponse, analyzeImage, isFarmingTopic } from "../src/lib/gemini";
+import { saveInteraction } from "../src/lib/database";
+
+function fakeSocket(): WASocket & { sendMessage: ReturnType<typeof vi.fn> } {
+  return { sendMessage: vi.fn(async () => undefined) } as any;
+}
+
+function textMsg(text: string, id = "m1"): proto.IWebMessageInfo {
+  return {
+    key: { remoteJid: "111@s.whatsapp.net", id },
+    message: { conversation: text },
+    pushName: "Farmer",
+  } as any;
+}
+
+function imageMsg(): proto.IWebMessageInfo {
+  return {
+    key: { remoteJid: "111@s.whatsapp.net", id: "img1" },
+    message: { imageMessage: { mimetype: "image/jpeg" } },
+    pushName: "Farmer",
+  } as any;
+}
+
+const drain = () => Promise.allSettled([...backgroundTasks]);
+
+beforeEach(() => {
+  resetForTests();
+  vi.clearAllMocks();
+  (isFarmingTopic as any).mockResolvedValue(false);
+});
+
+describe("handleMessage — DM text", () => {
+  it("answers a farming question and sends a reply", async () => {
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("how do I grow tomatoes?"), false, "u1@s.whatsapp.net");
+    expect(generateTextResponse).toHaveBeenCalledOnce();
+    expect(s.sendMessage).toHaveBeenCalledWith(
+      "111@s.whatsapp.net",
+      { text: "Here is some farming advice 🌱" }
+    );
+  });
+
+  it("keyword fast-path skips the classifier", async () => {
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("my tomato leaves are yellow"), false, "u1@s.whatsapp.net");
+    expect(isFarmingTopic).not.toHaveBeenCalled();
+    expect(generateTextResponse).toHaveBeenCalledOnce();
+  });
+
+  it("rejects off-topic text with the canned reply and no generation", async () => {
+    (isFarmingTopic as any).mockResolvedValue(false);
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("what is the football score tonight"), false, "u1@s.whatsapp.net");
+    expect(generateTextResponse).not.toHaveBeenCalled();
+    const sent = (s.sendMessage as any).mock.calls[0][1].text as string;
+    expect(sent).toContain("farming community");
+  });
+
+  it("classifier fallback allows a farming question with no keyword", async () => {
+    (isFarmingTopic as any).mockResolvedValue(true);
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("why are the edges of my seedlings curling"), false, "u1@s.whatsapp.net");
+    expect(isFarmingTopic).toHaveBeenCalledOnce();
+    expect(generateTextResponse).toHaveBeenCalledOnce();
+  });
+});
+
+describe("handleMessage — groups", () => {
+  it("stays silent in a group without the trigger word", async () => {
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("how do I grow tomatoes?"), true, "u1@s.whatsapp.net");
+    expect(s.sendMessage).not.toHaveBeenCalled();
+    expect(generateTextResponse).not.toHaveBeenCalled();
+  });
+
+  it("responds in a group when triggered", async () => {
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("agrifriend how do I grow tomatoes?"), true, "u1@s.whatsapp.net");
+    expect(generateTextResponse).toHaveBeenCalledOnce();
+  });
+
+  it("strips the trigger word from the text passed to the model", async () => {
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("agrifriend how do I grow tomatoes?"), true, "u1@s.whatsapp.net");
+    const promptText = (generateTextResponse as any).mock.calls[0][0] as string;
+    expect(promptText).not.toContain("agrifriend");
+    expect(promptText).toContain("grow tomatoes");
+  });
+});
+
+describe("handleMessage — rate limiting", () => {
+  it("throttles a user past the per-user limit without calling Gemini", async () => {
+    const s = fakeSocket();
+    // config.rateLimitPerMinute = 8; the 9th should throttle.
+    for (let i = 0; i < 8; i++) {
+      await handleMessage(s, textMsg("grow tomatoes", `k${i}`), false, "spam@s.whatsapp.net");
+    }
+    (generateTextResponse as any).mockClear();
+    await handleMessage(s, textMsg("grow tomatoes", "k9"), false, "spam@s.whatsapp.net");
+    expect(generateTextResponse).not.toHaveBeenCalled();
+    const last = (s.sendMessage as any).mock.calls.at(-1)[1].text as string;
+    expect(last).toContain("catching up");
+  });
+});
+
+describe("handleMessage — images", () => {
+  it("routes an image to analyzeImage (bypasses the text guardrail)", async () => {
+    const s = fakeSocket();
+    await handleMessage(s, imageMsg(), false, "u1@s.whatsapp.net");
+    expect(analyzeImage).toHaveBeenCalledOnce();
+    expect(s.sendMessage).toHaveBeenCalledWith(
+      "111@s.whatsapp.net",
+      { text: "Your plant looks healthy!" }
+    );
+  });
+});
+
+describe("handleMessage — resilience", () => {
+  it("on a Gemini failure, still replies with a fallback AND persists", async () => {
+    (generateTextResponse as any).mockRejectedValueOnce(new Error("gemini down"));
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("grow tomatoes"), false, "u1@s.whatsapp.net");
+    const sent = (s.sendMessage as any).mock.calls[0][1].text as string;
+    expect(sent).toContain("trouble processing");
+    await drain();
+    expect(saveInteraction).toHaveBeenCalledOnce();
+  });
+
+  it("persists even if the outbound send fails", async () => {
+    const s = fakeSocket();
+    (s.sendMessage as any).mockRejectedValueOnce(new Error("send failed"));
+    await handleMessage(s, textMsg("grow tomatoes"), false, "u1@s.whatsapp.net");
+    await drain();
+    expect(saveInteraction).toHaveBeenCalledOnce();
+  });
+});

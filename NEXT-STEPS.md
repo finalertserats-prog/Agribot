@@ -37,12 +37,16 @@ LLM Council's go/no-go findings, saved for later.
 - **B7 (Low):** Read-modify-write race in `updateUserProfile` (`src/lib/database.ts`) on rapid
   same-user messages.
 
-## Phase 2 — tests to reach the 80% bar (~1 day)
-1. `handleMessage` integration test (mock socket/gemini/db/memory) — highest value.
-2. `connectWhatsApp` reconnect/backoff test.
-3. `persist` failure/flush-rethrow + concurrency test.
-4. `memory` `pruneUser`/`queryMemory` + `gemini` `withRetry`/fail-open tests.
-5. Add a `test:coverage` script with a threshold gate.
+## Phase 2 — tests ✅ DONE (coverage 38% → 83%, 48 → 78 tests)
+1. ✅ `handleMessage` integration test — extracted handler to `src/handler.ts` (side-effect-free),
+   10 tests: guardrail, rate limit, groups, image routing, Gemini-failure fallback + persistence.
+2. ✅ `connectWhatsApp` reconnect/backoff test — 5 tests incl. single-flight guard, loggedOut-exit, dedup.
+3. ✅ `persist` failure/flush-rethrow + serialization tests.
+4. ✅ `memory` queryMemory filter/skip + `gemini` withRetry/fail-open/extractProfile tests.
+5. ✅ `test:coverage` script + 80% threshold gate in vitest.config.ts.
+
+Also, live smoke test found + fixed two real bugs: reconnect-timer unref regression and
+unpinned WhatsApp version (405). Bot boots cleanly to the QR pairing stage.
 
 ## To resume
 - Reopen decision: `node ~/.claude/scripts/disagreement.js --open`
