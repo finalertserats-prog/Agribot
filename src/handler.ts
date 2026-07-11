@@ -17,6 +17,7 @@ import {
   escapeRegExp,
 } from "./lib/domain";
 import { RateLimiter } from "./lib/rateLimiter";
+import { bump } from "./ops/metrics";
 
 const rateLimiter = new RateLimiter(config.rateLimitPerMinute);
 const globalMinuteLimiter = new RateLimiter(config.globalRateLimitPerMinute, 60_000);
@@ -117,6 +118,7 @@ export async function handleMessage(
   senderJid: string,
   _groupName?: string
 ): Promise<void> {
+  bump("messages");
   let text = extractTextFromMessage(msg);
   const hasImage = !!msg.message?.imageMessage;
   const remoteJid = msg.key.remoteJid!;
@@ -231,6 +233,7 @@ export async function handleMessage(
       response = await generateTextResponse(text, context);
     }
   } catch (err) {
+    bump("errors");
     logger.error({ err }, "Gemini generation failed");
     response = "I'm having trouble processing that right now. Please try again in a moment. 🌱";
   }

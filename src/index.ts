@@ -5,6 +5,7 @@ import { initGemini } from "./lib/gemini";
 import { initDB, flushDB } from "./lib/database";
 import { initMemory, flushMemory } from "./lib/memory";
 import { handleMessage, backgroundTasks } from "./handler";
+import { startHeartbeat, stopHeartbeat } from "./ops/heartbeat";
 
 void config; // ensure config (env validation) is evaluated at startup
 
@@ -34,7 +35,7 @@ function registerShutdown(): void {
           "Drain timed out — some background writes may not have persisted"
         );
       }
-      await Promise.all([flushDB(), flushMemory(), flushSeen()]);
+      await Promise.all([flushDB(), flushMemory(), flushSeen(), stopHeartbeat()]);
       process.exit(0);
     } catch (err) {
       // A flush failure means state may not have persisted — exit non-zero so
@@ -69,6 +70,9 @@ async function main(): Promise<void> {
 
   initMemory();
   logger.info("RAG memory system ready");
+
+  startHeartbeat();
+  logger.info("Heartbeat started (Ops Copilot can monitor)");
 
   registerShutdown();
 

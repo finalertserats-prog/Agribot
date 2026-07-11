@@ -48,6 +48,15 @@ LLM Council's go/no-go findings, saved for later.
 Also, live smoke test found + fixed two real bugs: reconnect-timer unref regression and
 unpinned WhatsApp version (405). Bot boots cleanly to the QR pairing stage.
 
+## Autonomy — Phase B (Ops Copilot) ✅ DONE
+Purpose-built, least-privilege ops daemon (NOT OpenClaw/Hermes — safer, fully controlled):
+- Bot writes a heartbeat (`data/heartbeat.json`, counts only — no farmer data).
+- `src/ops/`: metrics, heartbeat writer, pure health logic (100% tested), notifier
+  (log + optional webhook, no WhatsApp send), and the copilot daemon (`npm run ops`).
+- Monitors heartbeat → alerts (info/warn/critical) → self-heals via OPS_RESTART_COMMAND
+  with a bounded restart budget → recovery alert. Live-smoke-tested end to end.
+- 95 tests, 85% coverage. Next autonomy phases (A/C/D/E) per Doc 7.
+
 ## To resume
 - Reopen decision: `node ~/.claude/scripts/disagreement.js --open`
 - Resolve when decided: `node ~/.claude/scripts/disagreement.js --resolve DIS-001 --winner <peer> --reason "..."`

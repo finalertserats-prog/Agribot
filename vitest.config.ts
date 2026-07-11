@@ -16,7 +16,15 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
-      exclude: ["src/index.ts"], // bootstrap: side-effectful entrypoint, run via smoke test
+      // Side-effectful entrypoints / thin I/O wiring — verified by the live smoke
+      // tests (bot boot + Ops Copilot self-heal), not by unit tests. The pure
+      // logic they orchestrate (health.ts, metrics.ts) IS unit-tested.
+      exclude: [
+        "src/index.ts",
+        "src/ops/copilot.ts",
+        "src/ops/heartbeat.ts",
+        "src/ops/notifier.ts",
+      ],
       thresholds: { statements: 80, branches: 70, functions: 80, lines: 80 },
     },
   },

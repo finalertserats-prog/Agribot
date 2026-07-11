@@ -16,6 +16,7 @@ import { config } from "../config";
 import { logger } from "./logger";
 import { SeenCache } from "./seen";
 import { atomicWrite, createDebouncedSaver, type DebouncedSaver } from "./persist";
+import { bump } from "../ops/metrics";
 
 export type MessageHandler = (
   socket: WASocket,
@@ -92,6 +93,7 @@ const MAX_BACKOFF_MS = 60_000;
 // (so a single failed reconnect can't leave the bot permanently offline).
 function scheduleReconnect(onMessage: MessageHandler): void {
   if (reconnectTimer) return;
+  bump("reconnects");
   const delay = Math.min(1000 * 2 ** reconnectAttempts, MAX_BACKOFF_MS);
   reconnectAttempts++;
   logger.warn({ delay, attempt: reconnectAttempts }, "Scheduling reconnect after backoff");
