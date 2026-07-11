@@ -1,5 +1,6 @@
 import makeWASocket, {
   useMultiFileAuthState,
+  fetchLatestBaileysVersion,
   DisconnectReason,
   isJidGroup,
   jidNormalizedUser,
@@ -59,6 +60,28 @@ export async function flushSeen(): Promise<void> {
   if (seenSaver) await seenSaver.flush();
 }
 
+// Pin the current WhatsApp Web protocol version. Without this Baileys uses a
+// hardcoded default that WhatsApp can reject with a 405 handshake failure as the
+// protocol drifts. Fetched once and cached for the process lifetime; a short
+// timeout keeps a slow/hung fetch off the reconnect critical path, and a failed
+// fetch simply retries on the next reconnect (falling back to the lib default).
+let cachedWaVersion: Awaited<ReturnType<typeof fetchLatestBaileysVersion>>["version"] | undefined;
+
+async function resolveWaVersion(): Promise<typeof cachedWaVersion> {
+  if (cachedWaVersion) return cachedWaVersion;
+  try {
+    const timeout = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("version fetch timed out")), 5000).unref();
+    });
+    const { version } = await Promise.race([fetchLatestBaileysVersion(), timeout]);
+    cachedWaVersion = version;
+    logger.info({ version }, "Using WhatsApp Web version");
+  } catch (err) {
+    logger.warn({ err }, "Could not fetch latest WhatsApp version — using library default");
+  }
+  return cachedWaVersion;
+}
+
 // Reconnect backoff state (reset on a successful "open").
 let reconnectAttempts = 0;
 let reconnectTimer: NodeJS.Timeout | null = null;
@@ -79,8 +102,10 @@ function scheduleReconnect(onMessage: MessageHandler): void {
       scheduleReconnect(onMessage);
     });
   }, delay);
-  // Don't let a pending reconnect keep the process alive during shutdown.
-  reconnectTimer.unref?.();
+  // NOTE: intentionally NOT unref'd. During a reconnect backoff the WhatsApp
+  // socket is closed, so this timer is often the only thing keeping the process
+  // alive — unref'ing it makes Node exit mid-backoff instead of reconnecting.
+  // Graceful shutdown calls process.exit() explicitly, so it isn't blocked.
 }
 
 export async function connectWhatsApp(
@@ -101,8 +126,11 @@ export async function connectWhatsApp(
     }
   }
 
+  const version = await resolveWaVersion();
+
   socket = makeWASocket({
     auth: state,
+    ...(version ? { version } : {}),
     printQRInTerminal: false,
     logger: pino({ level: config.logLevel }),
     browser: ["AgriFriend Bot", "Chrome", "1.0.0"],
