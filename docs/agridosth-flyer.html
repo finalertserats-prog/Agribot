@@ -1,166 +1,223 @@
-<title>Agri-Dosth — Farmer Flyer</title>
+<title>कृषि-दोस्त · Agri-Dosth — Farmer Flyer</title>
 <style>
-  :root {
-    --field: #1c6b3a;      /* deep crop green */
-    --leaf:  #3f9142;      /* bright leaf */
-    --marigold: #f2a30a;   /* harvest / marigold gold */
-    --marigold-deep: #d98407;
-    --soil:  #5a3a20;      /* tilled soil */
-    --paper: #fbf6e9;      /* warm cream paper */
-    --paper-2: #f4ecd6;
-    --ink:   #29230f;      /* dark soil ink */
-    --ink-soft: #6b5f42;
+  :root{
+    --gold:#e5a93c; --gold-d:#c9821a; --marigold:#f28c1e;
+    --green:#2e6f40; --green-d:#154a2a; --leaf:#6bbd52;
+    --terra:#c05c3e; --terra-d:#9c4429;
+    --cream:#faf6ea; --cream2:#f3e7c9; --paperline:#e8d9b0;
+    --ink:#2b2110; --soft:#7c6a45;
+    --skin:#e6b487; --skin-d:#cf9a6b;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: #d8cba8;
-    font-family: "Segoe UI", "Trebuchet MS", system-ui, sans-serif;
-    color: var(--ink);
-    display: flex; justify-content: center;
-    padding: 24px 16px;
-    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:#c9b98f;
+    font-family:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,"Nirmala UI","Noto Sans Devanagari",sans-serif;
+    color:var(--ink); display:flex; justify-content:center; padding:22px 14px;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
   }
-  .flyer {
-    width: 100%; max-width: 640px;
-    background:
-      radial-gradient(120% 60% at 50% -10%, rgba(63,145,66,.10), transparent 60%),
-      var(--paper);
-    border: 3px solid var(--field);
-    border-radius: 22px;
-    overflow: hidden;
-    box-shadow: 0 18px 44px rgba(41,35,15,.28);
-  }
+  .card{ width:100%; max-width:600px; background:var(--cream);
+    border-radius:22px; overflow:hidden; position:relative;
+    box-shadow:0 22px 60px rgba(30,20,4,.36); }
 
-  /* ---- header band ---- */
-  header {
-    background: linear-gradient(160deg, var(--field), var(--leaf));
-    color: #fff; text-align: center;
-    padding: 30px 24px 26px;
-    position: relative;
-  }
-  header::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 14px;
-    background: repeating-linear-gradient(45deg, var(--marigold) 0 14px, var(--marigold-deep) 14px 28px);
-    opacity: .95;
-  }
-  .sprout { font-size: 46px; line-height: 1; }
-  .wordmark {
-    font-size: clamp(38px, 9vw, 54px); font-weight: 800; letter-spacing: -.5px;
-    text-wrap: balance; margin-top: 4px;
-  }
-  .tagline { font-size: clamp(15px, 3.4vw, 18px); font-weight: 600; opacity: .95; margin-top: 6px; }
-  .tagline .hi { display: block; font-size: 1.05em; margin-top: 2px; }
+  /* ---- marigold garland ---- */
+  .garland{ display:flex; justify-content:center; gap:2px; background:var(--green-d); padding:9px 6px 8px; }
+  .garland svg{ width:34px; height:34px; flex:0 0 auto; }
 
-  /* ---- hero pitch ---- */
-  .pitch { text-align: center; padding: 30px 26px 8px; }
-  .pitch h2 {
-    font-size: clamp(21px, 5vw, 27px); font-weight: 800; color: var(--field);
-    text-wrap: balance; line-height: 1.25;
-  }
-  .pitch .hi2 { display:block; color: var(--soil); font-size: .82em; margin-top: 8px; font-weight: 700; }
-  .free {
-    display: inline-block; margin-top: 16px;
-    background: var(--marigold); color: var(--ink);
-    font-weight: 800; font-size: 15px; letter-spacing: .3px;
-    padding: 7px 18px; border-radius: 999px;
-    box-shadow: 0 3px 0 var(--marigold-deep);
-  }
+  /* ---- hero ---- */
+  .hero{ position:relative; min-height:300px; color:#fff; overflow:hidden; padding:22px 22px 20px; display:flex; }
+  .hero .scene{ position:absolute; inset:0; width:100%; height:100%; z-index:0; }
+  .hero .copy{ position:relative; z-index:2; width:60%; align-self:center; }
+  .hero .farmer{ position:absolute; right:-6px; bottom:0; height:270px; z-index:1; }
+  .kick{ display:inline-block; font-size:12px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase;
+    background:var(--gold); color:var(--green-d); padding:4px 12px; border-radius:999px; }
+  .hook{ font-size:clamp(26px,6.6vw,36px); font-weight:900; line-height:1.08; margin-top:14px;
+    text-shadow:0 2px 12px rgba(8,30,15,.5); }
+  .hook .en{ display:block; font-size:.5em; font-weight:700; opacity:.95; margin-top:8px; letter-spacing:.2px; }
+  .brand{ margin-top:16px; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .brand b{ font-size:clamp(21px,4.6vw,26px); font-weight:900; color:#fff; letter-spacing:-.3px; }
+  .brand b .en{ color:var(--gold); }
+  .brand .role{ font-size:13px; font-weight:700; color:#eaf3e2; opacity:.95; }
 
-  /* ---- QR block ---- */
-  .scan { text-align: center; padding: 22px 26px 6px; }
-  .qr-card {
-    display: inline-block; background: #fff; padding: 16px; border-radius: 18px;
-    border: 2px dashed var(--leaf);
-    box-shadow: 0 6px 18px rgba(41,35,15,.16);
-  }
-  .qr-card img { display: block; width: 224px; height: 224px; image-rendering: pixelated; }
-  .scan-label {
-    margin-top: 16px; font-size: clamp(19px, 4.6vw, 24px); font-weight: 800; color: var(--field);
-  }
-  .scan-label .hi { display:block; color: var(--soil); font-size: .8em; font-weight: 700; margin-top: 2px; }
-  .url {
-    margin-top: 10px; font-size: 14px; color: var(--ink-soft); font-weight: 600;
-    word-break: break-all;
-  }
-  .url b { color: var(--soil); }
+  /* ---- scan action ---- */
+  .scan{ background:var(--cream); padding:24px 22px 8px; text-align:center; }
+  .scan .lead{ font-size:clamp(17px,4.4vw,21px); font-weight:800; color:var(--green-d); line-height:1.25; }
+  .scan .lead .en{ display:block; font-size:.72em; color:var(--terra); font-weight:700; margin-top:5px; }
+  .qrow{ display:flex; align-items:center; justify-content:center; gap:20px; margin-top:16px; flex-wrap:wrap; }
+  .qr{ position:relative; background:#fff; padding:13px; border-radius:16px; border:1px solid #eadfbf;
+    box-shadow:0 8px 22px rgba(30,20,4,.18); }
+  .qr::before,.qr::after{ content:""; position:absolute; width:24px; height:24px; border:4px solid var(--marigold); }
+  .qr::before{ top:-5px; left:-5px; border-right:0; border-bottom:0; border-radius:6px 0 0 0; }
+  .qr::after{ bottom:-5px; right:-5px; border-left:0; border-top:0; border-radius:0 0 6px 0; }
+  .qr img{ display:block; width:186px; height:186px; image-rendering:pixelated; }
+  .steps{ text-align:left; display:grid; gap:12px; }
+  .steps .st{ display:flex; align-items:center; gap:11px; }
+  .steps .n{ flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:var(--green); color:#fff;
+    font-weight:900; font-size:15px; display:grid; place-items:center; }
+  .steps .st:nth-child(2) .n{ background:var(--gold-d); }
+  .steps .st:nth-child(3) .n{ background:var(--terra); }
+  .steps .lbl{ font-size:14.5px; font-weight:800; color:var(--ink); line-height:1.2; }
+  .steps .lbl .en{ display:block; font-size:.8em; color:var(--soft); font-weight:600; }
+  .cta{ display:inline-block; margin-top:18px; background:var(--marigold); color:#fff;
+    font-size:17px; font-weight:900; letter-spacing:.3px; padding:11px 26px; border-radius:999px;
+    box-shadow:0 5px 0 var(--gold-d); }
+  .cta .en{ font-weight:700; opacity:.95; }
+  .url{ margin-top:12px; font-size:13px; font-weight:700; color:var(--soft); }
+  .url b{ color:var(--terra); }
 
   /* ---- benefits ---- */
-  .benefits { list-style: none; padding: 22px 26px 6px; display: grid; gap: 12px; }
-  .benefits li {
-    display: flex; align-items: center; gap: 14px;
-    background: var(--paper-2); border-radius: 14px; padding: 13px 16px;
-    border-left: 5px solid var(--marigold);
-  }
-  .benefits .ico { font-size: 26px; flex: 0 0 auto; }
-  .benefits .txt { font-size: 15.5px; font-weight: 600; line-height: 1.35; }
-  .benefits .txt .hi { display:block; color: var(--ink-soft); font-weight: 600; font-size: .92em; }
+  .feats{ list-style:none; padding:22px 24px 4px; display:grid; gap:16px; }
+  .feats li{ display:flex; align-items:center; gap:15px; }
+  .badge{ flex:0 0 auto; width:52px; height:52px; border-radius:15px; display:grid; place-items:center;
+    background:linear-gradient(150deg,var(--green),var(--leaf)); box-shadow:0 6px 13px rgba(46,111,64,.3); }
+  .badge.g{ background:linear-gradient(150deg,var(--gold-d),var(--gold)); box-shadow:0 6px 13px rgba(201,130,26,.32); }
+  .badge.t{ background:linear-gradient(150deg,var(--terra-d),var(--terra)); box-shadow:0 6px 13px rgba(156,68,41,.32); }
+  .badge svg{ width:27px; height:27px; stroke:#fff; fill:none; stroke-width:2.1; stroke-linecap:round; stroke-linejoin:round; }
+  .feats .txt{ font-size:16px; font-weight:800; line-height:1.28; }
+  .feats .txt .en{ display:block; font-size:.82em; color:var(--soft); font-weight:600; margin-top:1px; }
+
+  /* ---- language strip ---- */
+  .langs{ margin:20px 24px 2px; background:var(--cream2); border-radius:14px; padding:12px 16px; text-align:center;
+    border:1px dashed var(--paperline); }
+  .langs b{ display:block; font-size:14.5px; font-weight:900; color:var(--green-d); }
+  .langs span{ font-size:13px; font-weight:700; color:var(--terra-d); }
 
   /* ---- footer ---- */
-  footer {
-    margin-top: 18px; padding: 16px 26px 22px; text-align: center;
-    border-top: 1px dashed #d3c8a6;
-    color: var(--ink-soft);
-  }
-  footer p { font-size: 12.5px; line-height: 1.5; color: var(--ink-soft); }
-  footer .stop { margin-top: 6px; font-weight: 700; color: var(--soil); }
+  .foot{ margin-top:20px; background:var(--green-d); color:#e9f1e4; padding:16px 24px 20px; text-align:center; }
+  .foot .safe{ font-size:12px; line-height:1.5; opacity:.9; }
+  .foot .safe .en{ display:block; opacity:.72; margin-top:3px; }
+  .foot .sign{ margin-top:9px; font-size:15px; font-weight:900; color:var(--gold); }
 
-  @media print {
-    body { background: #fff; padding: 0; }
-    .flyer { box-shadow: none; border-radius: 0; max-width: 100%; }
-  }
+  @page{ size:A4; margin:10mm; }
+  @media print{ body{ background:#fff; padding:0; } .card{ box-shadow:none; border-radius:0; max-width:100%; } }
 </style>
 
-<div class="flyer">
-  <header>
-    <div class="sprout">🌱</div>
-    <div class="wordmark">Agri-Dosth</div>
-    <div class="tagline">
-      Your AI farming friend — on your phone
-      <span class="hi">किसानों का AI दोस्त — आपके फ़ोन पर</span>
-    </div>
-  </header>
-
-  <div class="pitch">
-    <h2>
-      Farming help, anytime — just ask.
-      <span class="hi2">खेती में मदद, कभी भी — बस पूछें।</span>
-    </h2>
+<div class="card">
+  <!-- marigold garland -->
+  <div class="garland">
+    <!-- 11 marigolds -->
+    <svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg>
+    <svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg>
+    <svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg>
+    <svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg>
+    <svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg>
+    <svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg>
+    <svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg>
+    <svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg>
+    <svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg>
+    <svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg>
+    <svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg>
   </div>
 
+  <!-- hero -->
+  <div class="hero">
+    <svg class="scene" viewBox="0 0 600 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1f6b3a"/><stop offset="0.6" stop-color="#2e7d46"/><stop offset="1" stop-color="#4f9a4a"/>
+        </linearGradient>
+        <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stop-color="#ffe6a1"/><stop offset="0.5" stop-color="#f4b53a"/><stop offset="1" stop-color="#f4b53a" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <rect width="600" height="300" fill="url(#sky)"/>
+      <circle cx="300" cy="70" r="130" fill="url(#sun)" opacity="0.85"/>
+      <circle cx="300" cy="70" r="40" fill="#ffd24d" opacity="0.9"/>
+      <path d="M0 214 Q150 178 300 204 T600 196 V300 H0 Z" fill="#2f8347" opacity="0.8"/>
+      <path d="M0 248 Q160 218 330 246 T600 238 V300 H0 Z" fill="#1c6b39"/>
+      <g stroke="#0f4a26" stroke-width="2" opacity="0.5" fill="none"><path d="M-20 278 Q300 260 620 278"/><path d="M-20 290 Q300 272 620 290"/></g>
+      <path d="M0 276 Q150 258 300 276 T600 272 V300 H0 Z" fill="#0f4a26"/>
+    </svg>
+
+    <div class="copy">
+      <span class="kick">किसान का साथी</span>
+      <div class="hook">फसल की परेशानी?<br>बस पूछें।
+        <span class="en">Crop trouble? Just ask — I'll help.</span>
+      </div>
+      <div class="brand">
+        <b>कृषि-दोस्त <span class="en">Agri-Dosth</span></b>
+        <span class="role">· आपका AI खेती साथी</span>
+      </div>
+    </div>
+
+    <!-- friendly farmer with a phone -->
+    <svg class="farmer" viewBox="0 0 200 270" aria-hidden="true">
+      <ellipse cx="100" cy="262" rx="66" ry="10" fill="#0c3c20" opacity="0.35"/>
+      <!-- body / kurta -->
+      <path d="M56 262 Q52 170 78 150 L122 150 Q148 170 144 262 Z" fill="#f4ede0"/>
+      <path d="M56 262 Q54 210 62 180 L74 262 Z" fill="#e6dcc7"/>
+      <!-- gamcha over shoulder -->
+      <path d="M78 150 L96 150 L86 214 L72 208 Z" fill="#e5673b"/>
+      <path d="M78 150 L96 150 L86 214 L72 208 Z" fill="none" stroke="#b9431f" stroke-width="2" stroke-dasharray="3 5"/>
+      <!-- left arm holding phone up -->
+      <path d="M78 158 Q52 172 48 120 L64 116 Q70 158 86 156 Z" fill="#e6b487"/>
+      <!-- phone -->
+      <rect x="30" y="88" width="40" height="60" rx="8" fill="#20323a"/>
+      <rect x="35" y="94" width="30" height="42" rx="4" fill="#dff5e0"/>
+      <rect x="39" y="100" width="18" height="6" rx="3" fill="#2e7d46"/>
+      <rect x="39" y="110" width="22" height="6" rx="3" fill="#cfe8cf"/>
+      <rect x="39" y="120" width="14" height="6" rx="3" fill="#cfe8cf"/>
+      <!-- right arm holding a green leaf -->
+      <path d="M122 158 Q150 168 156 128 L142 122 Q136 156 120 154 Z" fill="#e6b487"/>
+      <path d="M150 128 Q168 108 156 92 Q142 108 150 128 Z" fill="#5aa845"/>
+      <path d="M154 122 L152 100" stroke="#2e6f40" stroke-width="2" fill="none"/>
+      <!-- neck + head -->
+      <rect x="90" y="132" width="20" height="16" fill="#d89f6f"/>
+      <circle cx="100" cy="112" r="27" fill="#e6b487"/>
+      <!-- ears -->
+      <circle cx="74" cy="112" r="5" fill="#e6b487"/><circle cx="126" cy="112" r="5" fill="#e6b487"/>
+      <!-- turban (pagri) -->
+      <path d="M73 104 Q78 74 100 74 Q122 74 127 104 Q118 92 100 92 Q82 92 73 104 Z" fill="#f28c1e"/>
+      <path d="M73 104 Q88 96 100 96 Q112 96 127 104 Q100 112 73 104 Z" fill="#e5a93c"/>
+      <path d="M124 92 Q140 88 138 104 Q130 100 124 98 Z" fill="#e5a93c"/>
+      <!-- face -->
+      <circle cx="91" cy="112" r="2.6" fill="#3a2a18"/><circle cx="109" cy="112" r="2.6" fill="#3a2a18"/>
+      <path d="M90 126 Q100 134 110 126" stroke="#7a4a24" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      <path d="M88 120 Q100 124 112 120" stroke="#5a3a1c" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <!-- scan -->
   <div class="scan">
-    <div class="qr-card">
-      <img src="data:image/png;base64,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qQYAgKkGAICpBgCAqa8A3+LusvDeyye5uyy897Ly3stP9N7Lwt3l07z3wq/dXT7Ney/8WgMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMDUV/grvffC3+W9l4W7y8J7Lz/V3WXhvZeFu8vCey+f5r2XhbsLv/beC3+XBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpr/Bt7i78d91dfqK7C9/j7vJTvfeycHf5JO+9fJq7y8J7L/xaAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwNS9fwQAgJkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqf8BvH583XTV6OsAAAAASUVORK5CYII=" alt="Scan to open Agri-Dosth" />
+    <div class="lead">बीमार पौधे की फोटो भेजें — जवाब पाएँ
+      <span class="en">Send a photo of a sick plant, get help</span>
     </div>
-    <div class="scan-label">
-      📷 Scan to start chatting
-      <span class="hi">स्कैन करें और बात शुरू करें</span>
+    <div class="qrow">
+      <div class="qr"><img src="data:image/png;base64,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qQYAgKkGAICpBgCAqa8A3+LusvDeyye5uyy897Ly3stP9N7Lwt3l07z3wq/dXT7Ney/8WgMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMDUV/grvffC3+W9l4W7y8J7Lz/V3WXhvZeFu8vCey+f5r2XhbsLv/beC3+XBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpr/Bt7i78d91dfqK7C9/j7vJTvfeycHf5JO+9fJq7y8J7L/xaAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwNS9fwQAgJkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqf8BvH583XTV6OsAAAAASUVORK5CYII=" alt="Scan to open Agri-Dosth" /></div>
+      <div class="steps">
+        <div class="st"><span class="n">1</span><span class="lbl">कैमरा खोलें<span class="en">Open your camera</span></span></div>
+        <div class="st"><span class="n">2</span><span class="lbl">QR स्कैन करें<span class="en">Scan this QR code</span></span></div>
+        <div class="st"><span class="n">3</span><span class="lbl">बात शुरू करें<span class="en">Start chatting</span></span></div>
+      </div>
     </div>
-    <div class="url">or open <b>http://187.127.166.193:8090</b></div>
+    <span class="cta">अभी स्कैन करें <span class="en">· Scan now</span></span>
+    <div class="url">या ब्राउज़र में खोलें: <b>187.127.166.193:8090</b></div>
   </div>
 
-  <ul class="benefits">
+  <!-- benefits -->
+  <ul class="feats">
     <li>
-      <span class="ico">💬</span>
-      <span class="txt">Ask any farming, crop or soil question
-        <span class="hi">खेती, फसल या मिट्टी का कोई भी सवाल पूछें</span>
-      </span>
+      <span class="badge"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.3A8 8 0 1 1 21 12Z"/><path d="M8.5 11h7M8.5 14h4"/></svg></span>
+      <span class="txt">खेती, फसल या मिट्टी का कोई भी सवाल पूछें<span class="en">Ask any farming, crop or soil question</span></span>
     </li>
     <li>
-      <span class="ico">🍅</span>
-      <span class="txt">Send a photo of a sick plant for a diagnosis
-        <span class="hi">बीमार पौधे की फोटो भेजें, पहचान पाएँ</span>
-      </span>
+      <span class="badge g"><svg viewBox="0 0 24 24"><path d="M3 8h3l1.5-2h9L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.4"/></svg></span>
+      <span class="txt">फोटो से बीमारी और कीट पहचानें<span class="en">Diagnose disease &amp; pests from a photo</span></span>
     </li>
     <li>
-      <span class="ico">🗣️</span>
-      <span class="txt">Chat in your own language — Hindi, English &amp; more
-        <span class="hi">अपनी भाषा में बात करें — हिंदी, अंग्रेज़ी</span>
-      </span>
+      <span class="badge t"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.5 2.6 15 0 18M12 3c-2.6 2.5-2.6 15 0 18"/></svg></span>
+      <span class="txt">अपनी भाषा में, कभी भी बात करें<span class="en">Talk in your own language, anytime</span></span>
     </li>
   </ul>
 
-  <footer>
-    <p>Agri-Dosth is a friendly AI helper. For exact pesticide doses, please confirm with your local Krishi Vigyan Kendra (KVK) or agriculture officer.</p>
-    <p class="stop">सटीक दवा-मात्रा के लिए अपने नज़दीकी KVK / कृषि अधिकारी से पुष्टि करें।</p>
-  </footer>
+  <div class="langs">
+    <b>आपकी अपनी भाषा में उपलब्ध</b>
+    <span>हिंदी • English • मराठी • తెలుగు • தமிழ் • ਪੰਜਾਬੀ • বাংলা • ગુજરાતી</span>
+  </div>
+
+  <div class="foot">
+    <p class="safe">कृषि-दोस्त एक AI सहायक है। सटीक दवा-मात्रा के लिए नज़दीकी KVK / कृषि अधिकारी से पुष्टि करें।
+      <span class="en">Agri-Dosth is an AI helper. For exact pesticide doses, confirm with your local KVK / agriculture officer.</span>
+    </p>
+    <div class="sign">🌱 कृषि-दोस्त — हर किसान का साथी</div>
+  </div>
 </div>
