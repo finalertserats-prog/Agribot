@@ -75,6 +75,7 @@ export async function isFarmingTopic(text: string): Promise<boolean> {
 
 export interface ExtractedProfile {
   name: string;
+  phone: string;
   plants: string;
   issues: string;
   location: string;
@@ -86,15 +87,16 @@ export interface ExtractedProfile {
  * should treat failure as "no update".
  */
 export async function extractProfile(text: string): Promise<ExtractedProfile> {
-  const empty: ExtractedProfile = { name: "", plants: "", issues: "", location: "" };
+  const empty: ExtractedProfile = { name: "", phone: "", plants: "", issues: "", location: "" };
   try {
-    const prompt = `Extract durable facts about the user from their message. Return ONLY compact JSON with keys "name" (the person's own name if they state it, e.g. "my name is Ramesh" or "I am Ramesh" — NOT a crop or place), "plants" (crops/plants they grow), "issues" (recurring problems mentioned), "location" (their village/district/state/region). Use an empty string for anything not explicitly stated. Do not infer.\n\nMessage: "${text}"\n\nJSON:`;
+    const prompt = `Extract durable facts about the user from their message. Return ONLY compact JSON with keys "name" (the person's own name if they state it, e.g. "my name is Ramesh" or "I am Ramesh" — NOT a crop or place), "phone" (their phone/mobile number if they state it, digits only), "plants" (crops/plants they grow), "issues" (recurring problems mentioned), "location" (their village/district/state/region). Use an empty string for anything not explicitly stated. Do not infer.\n\nMessage: "${text}"\n\nJSON:`;
     const raw = await withRetry(() => getProvider().generateText(prompt), 2);
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) return empty;
     const parsed = JSON.parse(match[0]) as Partial<ExtractedProfile>;
     return {
       name: typeof parsed.name === "string" ? parsed.name : "",
+      phone: typeof parsed.phone === "string" ? parsed.phone : "",
       plants: typeof parsed.plants === "string" ? parsed.plants : "",
       issues: typeof parsed.issues === "string" ? parsed.issues : "",
       location: typeof parsed.location === "string" ? parsed.location : "",

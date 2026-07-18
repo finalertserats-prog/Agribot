@@ -75,6 +75,7 @@ describe("extractProfile", () => {
     genContent.mockResolvedValue({ response: { text: () => "sorry, not sure" } });
     expect(await extractProfile("hello there friend")).toEqual({
       name: "",
+      phone: "",
       plants: "",
       issues: "",
       location: "",
@@ -85,6 +86,7 @@ describe("extractProfile", () => {
     genContent.mockRejectedValue(new Error("boom"));
     expect(await extractProfile("some long enough message")).toEqual({
       name: "",
+      phone: "",
       plants: "",
       issues: "",
       location: "",

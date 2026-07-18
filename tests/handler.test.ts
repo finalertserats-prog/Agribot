@@ -17,6 +17,7 @@ const EXISTING_USER = {
   location: "",
   firstSeen: "",
   lastSeen: "",
+  phone: "",
 };
 vi.mock("../src/lib/database", () => ({
   upsertUser: vi.fn(),

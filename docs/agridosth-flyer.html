@@ -1,0 +1,167 @@
+<title>Agri-Dosth — Farmer Flyer</title>
+<style>
+  :root {
+    --field: #1c6b3a;      /* deep crop green */
+    --leaf:  #3f9142;      /* bright leaf */
+    --marigold: #f2a30a;   /* harvest / marigold gold */
+    --marigold-deep: #d98407;
+    --soil:  #5a3a20;      /* tilled soil */
+    --paper: #fbf6e9;      /* warm cream paper */
+    --paper-2: #f4ecd6;
+    --ink:   #29230f;      /* dark soil ink */
+    --ink-soft: #6b5f42;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #d8cba8;
+    font-family: "Segoe UI", "Trebuchet MS", system-ui, sans-serif;
+    color: var(--ink);
+    display: flex; justify-content: center;
+    padding: 24px 16px;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .flyer {
+    width: 100%; max-width: 640px;
+    background:
+      radial-gradient(120% 60% at 50% -10%, rgba(63,145,66,.10), transparent 60%),
+      var(--paper);
+    border: 3px solid var(--field);
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: 0 18px 44px rgba(41,35,15,.28);
+  }
+
+  /* ---- header band ---- */
+  header {
+    background: linear-gradient(160deg, var(--field), var(--leaf));
+    color: #fff; text-align: center;
+    padding: 30px 24px 26px;
+    position: relative;
+  }
+  header::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 14px;
+    background: repeating-linear-gradient(45deg, var(--marigold) 0 14px, var(--marigold-deep) 14px 28px);
+    opacity: .95;
+  }
+  .sprout { font-size: 46px; line-height: 1; }
+  .wordmark {
+    font-size: clamp(38px, 9vw, 54px); font-weight: 800; letter-spacing: -.5px;
+    text-wrap: balance; margin-top: 4px;
+  }
+  .tagline { font-size: clamp(15px, 3.4vw, 18px); font-weight: 600; opacity: .95; margin-top: 6px; }
+  .tagline .hi { display: block; font-size: 1.05em; margin-top: 2px; }
+
+  /* ---- hero pitch ---- */
+  .pitch { text-align: center; padding: 30px 26px 8px; }
+  .pitch h2 {
+    font-size: clamp(21px, 5vw, 27px); font-weight: 800; color: var(--field);
+    text-wrap: balance; line-height: 1.25;
+  }
+  .pitch .hi2 { display:block; color: var(--soil); font-size: .82em; margin-top: 8px; font-weight: 700; }
+  .free {
+    display: inline-block; margin-top: 16px;
+    background: var(--marigold); color: var(--ink);
+    font-weight: 800; font-size: 15px; letter-spacing: .3px;
+    padding: 7px 18px; border-radius: 999px;
+    box-shadow: 0 3px 0 var(--marigold-deep);
+  }
+
+  /* ---- QR block ---- */
+  .scan { text-align: center; padding: 22px 26px 6px; }
+  .qr-card {
+    display: inline-block; background: #fff; padding: 16px; border-radius: 18px;
+    border: 2px dashed var(--leaf);
+    box-shadow: 0 6px 18px rgba(41,35,15,.16);
+  }
+  .qr-card img { display: block; width: 224px; height: 224px; image-rendering: pixelated; }
+  .scan-label {
+    margin-top: 16px; font-size: clamp(19px, 4.6vw, 24px); font-weight: 800; color: var(--field);
+  }
+  .scan-label .hi { display:block; color: var(--soil); font-size: .8em; font-weight: 700; margin-top: 2px; }
+  .url {
+    margin-top: 10px; font-size: 14px; color: var(--ink-soft); font-weight: 600;
+    word-break: break-all;
+  }
+  .url b { color: var(--soil); }
+
+  /* ---- benefits ---- */
+  .benefits { list-style: none; padding: 22px 26px 6px; display: grid; gap: 12px; }
+  .benefits li {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--paper-2); border-radius: 14px; padding: 13px 16px;
+    border-left: 5px solid var(--marigold);
+  }
+  .benefits .ico { font-size: 26px; flex: 0 0 auto; }
+  .benefits .txt { font-size: 15.5px; font-weight: 600; line-height: 1.35; }
+  .benefits .txt .hi { display:block; color: var(--ink-soft); font-weight: 600; font-size: .92em; }
+
+  /* ---- footer ---- */
+  footer {
+    margin-top: 18px; padding: 16px 26px 22px; text-align: center;
+    border-top: 1px dashed #d3c8a6;
+    color: var(--ink-soft);
+  }
+  footer p { font-size: 12.5px; line-height: 1.5; color: var(--ink-soft); }
+  footer .stop { margin-top: 6px; font-weight: 700; color: var(--soil); }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .flyer { box-shadow: none; border-radius: 0; max-width: 100%; }
+  }
+</style>
+
+<div class="flyer">
+  <header>
+    <div class="sprout">🌱</div>
+    <div class="wordmark">Agri-Dosth</div>
+    <div class="tagline">
+      Your AI farming friend — on your phone
+      <span class="hi">किसानों का AI दोस्त — आपके फ़ोन पर</span>
+    </div>
+  </header>
+
+  <div class="pitch">
+    <h2>
+      Free farming help, anytime — just ask.
+      <span class="hi2">मुफ़्त खेती मदद, कभी भी — बस पूछें।</span>
+    </h2>
+    <span class="free">100% FREE · मुफ़्त</span>
+  </div>
+
+  <div class="scan">
+    <div class="qr-card">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAAJYCAYAAAC+ZpjcAAAAAklEQVR4AewaftIAAAzPSURBVO3BQZIdVnADMDZr7n/lF+9TkhehJl9jAPf+EQAAZhoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAApr7Cv7q78N/13svC3WXhvZeFu8snee/lp7q7fJL3XlbuLvw3vffCrzUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMfYVv894L3+Pu8mnee1m4uyy89wKf4r0XvsfdhT+vAQBgqgEAYKoBAGCqAQBgqgEAYKoBAGCqAQBgqgEAYKoBAGCqAQBgqgEAYKoBAGCqAQBgqgEAYKoBAGCqAQBgqgEAYKoBAGDqK/yV7i4/0XsvP9Xd5ZPcXX6q914W7i78Xe4uP9F7L/xdGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKa+AnyL914W7i783t0F4P9TAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwNRXgL/Key8Ld5ef6r2XT3J3Af5bGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKa+wl/pvRf+LneXT/Leyye5u/xU770s3F34vfde4BM0AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATH2Fb3N3gf+r914W7i4L7738VHeXhfde+L27C/wkDQAAUw0AAFMNAABTDQAAUw0AAFMNAABTDQAAUw0AAFMNAABTDQAAUw0AAFMNAABTDQAAUw0AAFMNAABTDQAAUw0AAFMNAABT9/4R4K9xd/kk7718mrvLwnsvC3eXhfdegL9DAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwNRX+Fd3l4X3XlbuLgvvvfxEd5dP897LwnsvC3cXfu/usvDeC793d1l47+WT3F0W3ntZubssvPfCrzUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMfYV/9d7Lwt3l09xdFt57Wbi7LLz3snJ3+SR3l09yd/k07718krvLwnsvC3eXT/Pey8Ld5ZO897Jwd+Hv0gAAMNUAADDVAAAw1QAAMNUAADDVAAAw1QAAMNUAADDVAAAw1QAAMNUAADDVAAAw1QAAMNUAADDVAAAw1QAAMNUAADD1Fb7Ney8rd5dPcnf5JHcXvsd7Lwt3l5W7C7/23gvf4+6y8N7Lyt2FP68BAGCqAQBgqgEAYKoBAGCqAQBgqgEAYKoBAGCqAQBgqgEAYKoBAGCqAQBgqgEAYKoBAGCqAQBgqgEAYKoBAGCqAQBg6iv8q7vLp3nv5ZPcXRbee/k0d5dP8t7LJ7m7LLz3wu/dXfi9914W7i4L7718mvde+PMaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAApr7Cv3rvZeHu8mnuLgvvvSzcXT7Ney8/0d2F37u78HvvvSzcXRbuLgvvvfxUd5eF9174tQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqXv/CH+du8tP9N7LT3V3WXjvZeHusvDeC9/j7vJTvffCr91dPs17L/xaAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwNRX+Fd3l0/z3svC3eWT3F34Hu+9LNxdFt57Wbm7LLz3snB34ffuLgvvvSzcXT7Jey8rdxf+vAYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpe/8I8Et3l5/ovRe+x93lp3rvBfjfGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKbu/SP81t3lp3rvZeHu8lO99/JJ7i7A3+G9l4W7y8p7L/x5DQAAUw0AAFMNAABTDQAAUw0AAFMNAABTDQAAUw0AAFMNAABTDQAAUw0AAFMNAABTDQAAUw0AAFMNAABTDQAAUw0AAFP3/hHgj7u7fJL3Xj7J3WXlvZef6O6y8N7LT3V3WXjv5ae6uyy898KvNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMNQAATDUAAEw1AABMfYV/dXfhv+u9l5/o7rLw3sunubvwPe4uC++9fJK7yyd574W/SwMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMDUV/g2773wPe4un+a9l4W7y8J7Lwt3l0/z3ssnubv8VO+9/ETvvSzcXT7Ney/8eQ0AAFMNAABTDQAAUw0AAFMNAABTDQAAUw0AAFMNAABTDQAAUw0AAFMNAABTDQAAUw0AAFMNAABTDQAAUw0AAFMNAABTX+GvdHf5id574XvcXRbee/k0d5dP8t7Lwt1l4e7C93jv5dPcXRbee+HXGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKYaAACmGgAAphoAAKa+AvxV3ntZuLvwe++9/ETvvazcXX6iu8snee9l5b0X/rwGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqa8A3+LusvDeyye5uyy897Ly3stP9N7Lwt3l07z3wq/dXT7Ney/8WgMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMDUV/grvffC3+W9l4W7y8J7Lz/V3WXhvZeFu8vCey+f5r2XhbsLv/beC3+XBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpr/Bt7i78d91dfqK7C9/j7vJTvfeycHf5JO+9fJq7y8J7L/xaAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwNS9fwQAgJkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqf8BvH583XTV6OsAAAAASUVORK5CYII=" alt="Scan to open Agri-Dosth" />
+    </div>
+    <div class="scan-label">
+      📷 Scan to start chatting
+      <span class="hi">स्कैन करें और बात शुरू करें</span>
+    </div>
+    <div class="url">or open <b>http://187.127.166.193:8090</b></div>
+  </div>
+
+  <ul class="benefits">
+    <li>
+      <span class="ico">💬</span>
+      <span class="txt">Ask any farming, crop or soil question
+        <span class="hi">खेती, फसल या मिट्टी का कोई भी सवाल पूछें</span>
+      </span>
+    </li>
+    <li>
+      <span class="ico">🍅</span>
+      <span class="txt">Send a photo of a sick plant for a diagnosis
+        <span class="hi">बीमार पौधे की फोटो भेजें, पहचान पाएँ</span>
+      </span>
+    </li>
+    <li>
+      <span class="ico">🗣️</span>
+      <span class="txt">Chat in your own language — Hindi, English &amp; more
+        <span class="hi">अपनी भाषा में बात करें — हिंदी, अंग्रेज़ी</span>
+      </span>
+    </li>
+  </ul>
+
+  <footer>
+    <p>Agri-Dosth is a friendly AI helper. For exact pesticide doses, please confirm with your local Krishi Vigyan Kendra (KVK) or agriculture officer.</p>
+    <p class="stop">सटीक दवा-मात्रा के लिए अपने नज़दीकी KVK / कृषि अधिकारी से पुष्टि करें।</p>
+  </footer>
+</div>

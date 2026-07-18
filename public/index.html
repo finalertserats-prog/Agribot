@@ -75,8 +75,8 @@
       chat.appendChild(d); chat.scrollTop = chat.scrollHeight; return d;
     }
 
-    // Greeting.
-    bubble('🌱 Namaste! I\'m Agri-Dosth, your farming friend. Ask me anything about your crops, soil, pests, or plant health — you can even send a photo of a sick plant. What should I call you, and where do you farm?', 'bot');
+    // Greeting — welcome, then ask for the details before helping.
+    bubble('🌱 Namaste! I\'m Agri-Dosth, your farming friend. 🚜\n\nBefore we begin, tell me a little about yourself so I can help you better:\n\n1️⃣ Your name\n2️⃣ Your village / area (where you farm)\n3️⃣ Your phone number\n\nनमस्ते! अपना नाम, गाँव/क्षेत्र और फ़ोन नंबर बताएँ — फिर मैं आपकी खेती में मदद करूँगा! 🌾', 'bot');
 
     document.getElementById('camBtn').onclick = () => fileEl.click();
     fileEl.onchange = () => {

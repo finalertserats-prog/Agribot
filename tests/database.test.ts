@@ -112,6 +112,15 @@ describe("database round-trip", () => {
     expect(getUser("named@s.whatsapp.net")?.name).toBe("Ramesh");
   });
 
+  it("stores a farmer's name, place and phone together", () => {
+    upsertUser("np@s.whatsapp.net", "Farmer", "g1");
+    updateUserProfile("np@s.whatsapp.net", { name: "Sita", location: "Warangal", phone: "9876543210" });
+    const u = getUser("np@s.whatsapp.net");
+    expect(u?.name).toBe("Sita");
+    expect(u?.location).toBe("Warangal");
+    expect(u?.phone).toBe("9876543210");
+  });
+
   it("deleteUserData erases the user, their interactions, and opt-out", async () => {
     const jid = "wipe@s.whatsapp.net";
     upsertUser(jid, "Sita", "g1");

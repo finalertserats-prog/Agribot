@@ -129,7 +129,7 @@ async function persistAndEnrich(
   if (text && text.trim().length > 10) {
     try {
       const profile = await extractProfile(text);
-      if (profile.name || profile.plants || profile.issues || profile.location) {
+      if (profile.name || profile.phone || profile.plants || profile.issues || profile.location) {
         updateUserProfile(senderJid, profile);
       }
     } catch (err) {
@@ -295,6 +295,7 @@ export async function handleMessage(
     // don't know it, so the model should ask (per the system prompt).
     const knownName = user.name && user.name !== "Farmer" ? user.name : "";
     if (knownName) profile.push(`Name: ${knownName}`);
+    if (user.phone) profile.push(`Phone: ${user.phone}`);
     if (user.plants) profile.push(`Growing: ${user.plants}`);
     if (user.issues) profile.push(`Past issues: ${user.issues}`);
     if (user.location) profile.push(`Location: ${user.location}`);

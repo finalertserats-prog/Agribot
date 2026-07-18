@@ -15,6 +15,7 @@ export interface UserRecord {
   location: string;
   firstSeen: string;
   lastSeen: string;
+  phone: string;
 }
 
 export interface Interaction {
@@ -55,9 +56,18 @@ export async function initDB(): Promise<void> {
       issues TEXT DEFAULT '',
       location TEXT DEFAULT '',
       firstSeen TEXT NOT NULL,
-      lastSeen TEXT NOT NULL
+      lastSeen TEXT NOT NULL,
+      phone TEXT DEFAULT ''
     );
   `);
+
+  // Migration: add the phone column to DBs created before it existed. ALTER
+  // throws if the column is already present (fresh DBs), so ignore that.
+  try {
+    db.run("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT ''");
+  } catch {
+    /* column already exists — nothing to do */
+  }
 
   db.run(`
     CREATE TABLE IF NOT EXISTS interactions (
@@ -179,7 +189,7 @@ export function mergeFacts(existing: string, incoming: string | undefined): stri
  */
 export function updateUserProfile(
   id: string,
-  profile: Partial<Pick<UserRecord, "name" | "plants" | "issues" | "location">>
+  profile: Partial<Pick<UserRecord, "name" | "phone" | "plants" | "issues" | "location">>
 ): void {
   const existing = getUser(id);
   if (!existing) return;
@@ -187,12 +197,14 @@ export function updateUserProfile(
   const plants = mergeFacts(existing.plants, profile.plants);
   const issues = mergeFacts(existing.issues, profile.issues);
   const location = sanitizeProfileField(profile.location) || existing.location;
-  // Name is single-valued; a freshly-stated name wins, but never overwrite a
-  // known name with an empty extraction.
+  // Name and phone are single-valued; a freshly-stated value wins, but never
+  // overwrite a known value with an empty extraction.
   const name = sanitizeProfileField(profile.name) || existing.name;
+  const phone = sanitizeProfileField(profile.phone) || existing.phone;
 
   if (
     name === existing.name &&
+    phone === existing.phone &&
     plants === existing.plants &&
     issues === existing.issues &&
     location === existing.location
@@ -200,8 +212,9 @@ export function updateUserProfile(
     return; // nothing changed — skip the write
   }
 
-  db.run("UPDATE users SET name = ?, plants = ?, issues = ?, location = ? WHERE id = ?", [
+  db.run("UPDATE users SET name = ?, phone = ?, plants = ?, issues = ?, location = ? WHERE id = ?", [
     name,
+    phone,
     plants,
     issues,
     location,
@@ -238,6 +251,7 @@ export function getUser(id: string): UserRecord | undefined {
     location: row[5] as string,
     firstSeen: row[6] as string,
     lastSeen: row[7] as string,
+    phone: (row[8] as string) ?? "",
   };
 }
 

@@ -89,6 +89,7 @@ export async function webChat(input: WebChatInput): Promise<{ reply: string }> {
     const p: string[] = [];
     const knownName = user.name && user.name !== DEFAULT_NAME ? user.name : "";
     if (knownName) p.push(`Name: ${knownName}`);
+    if (user.phone) p.push(`Phone: ${user.phone}`);
     if (user.plants) p.push(`Growing: ${user.plants}`);
     if (user.issues) p.push(`Past issues: ${user.issues}`);
     if (user.location) p.push(`Location: ${user.location}`);
@@ -121,7 +122,7 @@ export async function webChat(input: WebChatInput): Promise<{ reply: string }> {
   if (text && text.trim().length > 10) {
     void extractProfile(text)
       .then((profile) => {
-        if (profile.name || profile.plants || profile.issues || profile.location) {
+        if (profile.name || profile.phone || profile.plants || profile.issues || profile.location) {
           updateUserProfile(sessionId, profile);
         }
       })
