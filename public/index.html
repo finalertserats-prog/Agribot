@@ -5,39 +5,53 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Agri-Dosth 🌱 — Your Farming Friend</title>
   <style>
-    :root { --green:#2e7d32; --green-d:#1b5e20; --bg:#f4f6f3; --bubble-bot:#ffffff; --bubble-me:#dcf8c6; --ink:#1a1a1a; }
+    :root { --green:#2e7d32; --green-d:#1b5e20; --bg:#f4f6f3; --bubble-bot:#ffffff; --bubble-me:#dcf8c6; --ink:#1a1a1a; --gold:#f2a30a; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin:0; height:100%; }
     body { font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; height:100dvh; }
-    header { background:var(--green); color:#fff; padding:12px 16px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 6px rgba(0,0,0,.15); }
+    header { background:var(--green); color:#fff; padding:10px 14px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 6px rgba(0,0,0,.15); }
     header .logo { font-size:26px; }
-    header h1 { font-size:18px; margin:0; font-weight:700; }
-    header p { margin:2px 0 0; font-size:12px; opacity:.9; }
+    .brand h1 { font-size:18px; margin:0; font-weight:700; }
+    .brand p { margin:2px 0 0; font-size:12px; opacity:.9; }
+    .tools { margin-left:auto; display:flex; gap:7px; }
+    .tool { background:rgba(255,255,255,.18); color:#fff; border:none; width:40px; height:40px; border-radius:11px; font-size:18px; cursor:pointer; }
+    .tool:active { background:rgba(255,255,255,.34); }
     #consent { background:#fffde7; border-bottom:1px solid #eee; color:#5d4037; font-size:12px; padding:8px 16px; line-height:1.4; }
-    #chat { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
-    .msg { max-width:82%; padding:9px 13px; border-radius:14px; font-size:15px; line-height:1.45; white-space:pre-wrap; word-wrap:break-word; box-shadow:0 1px 1px rgba(0,0,0,.08); }
-    .bot { background:var(--bubble-bot); align-self:flex-start; border-top-left-radius:4px; }
-    .me { background:var(--bubble-me); align-self:flex-end; border-top-right-radius:4px; }
-    .me img, .bot img { max-width:100%; border-radius:10px; margin-top:6px; display:block; }
+    #chat { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:4px; }
+    .row { display:flex; flex-direction:column; max-width:82%; }
+    .row.me { align-self:flex-end; align-items:flex-end; }
+    .row.bot { align-self:flex-start; align-items:flex-start; }
+    .msg { padding:9px 13px; border-radius:14px; font-size:15px; line-height:1.45; white-space:pre-wrap; word-wrap:break-word; box-shadow:0 1px 1px rgba(0,0,0,.08); }
+    .bot .msg { background:var(--bubble-bot); border-top-left-radius:4px; }
+    .me .msg { background:var(--bubble-me); border-top-right-radius:4px; }
+    .msg img { max-width:100%; border-radius:10px; margin-top:6px; display:block; }
+    .time { font-size:10px; color:#9a9a8a; margin:2px 4px 6px; }
     .typing { align-self:flex-start; color:#777; font-size:14px; font-style:italic; padding:4px 8px; }
     footer { padding:10px; background:#fff; border-top:1px solid #e6e6e6; }
-    .row { display:flex; align-items:flex-end; gap:8px; }
+    .inrow { display:flex; align-items:flex-end; gap:8px; }
     #msg { flex:1; resize:none; border:1px solid #cfd8dc; border-radius:22px; padding:10px 14px; font-size:15px; max-height:120px; font-family:inherit; }
-    button { border:none; background:var(--green); color:#fff; border-radius:50%; width:44px; height:44px; font-size:20px; cursor:pointer; flex:0 0 auto; }
-    button:active { background:var(--green-d); }
+    button.send, button.icon { border:none; border-radius:50%; width:44px; height:44px; font-size:20px; cursor:pointer; flex:0 0 auto; }
+    button.send { background:var(--green); color:#fff; }
+    button.send:active { background:var(--green-d); }
     button.icon { background:#eceff1; color:var(--green-d); }
     #preview { display:none; padding:6px 10px 0; }
     #preview img { max-height:70px; border-radius:8px; border:1px solid #ddd; }
     #preview .x { color:#c62828; font-size:13px; margin-left:8px; cursor:pointer; }
     .hint { text-align:center; color:#8a8a8a; font-size:11px; padding:4px; }
+    .toast { position:fixed; left:50%; bottom:84px; transform:translateX(-50%); background:#333; color:#fff; padding:9px 16px; border-radius:20px; font-size:13px; opacity:0; transition:opacity .25s; pointer-events:none; z-index:9; }
+    .toast.show { opacity:.95; }
   </style>
 </head>
 <body>
   <header>
     <span class="logo">🌱</span>
-    <div>
+    <div class="brand">
       <h1>Agri-Dosth</h1>
       <p>Your AI farming friend · किसानों का दोस्त</p>
+    </div>
+    <div class="tools">
+      <button class="tool" id="saveBtn" title="Save this chat / चैट सेव करें">💾</button>
+      <button class="tool" id="newBtn" title="Start a new chat / नई चैट">✏️</button>
     </div>
   </header>
   <div id="consent">
@@ -46,70 +60,136 @@
   <div id="chat"></div>
   <div id="preview"></div>
   <footer>
-    <div class="row">
+    <div class="inrow">
       <button class="icon" id="camBtn" title="Send a crop photo">📷</button>
       <input type="file" id="file" accept="image/*" capture="environment" hidden />
       <textarea id="msg" rows="1" placeholder="Ask about your crops…"></textarea>
-      <button id="send" title="Send">➤</button>
+      <button class="send" id="send" title="Send">➤</button>
     </div>
-    <div class="hint">Send a photo of a sick plant for a diagnosis 🌾</div>
+    <div class="hint">💾 Save button keeps a copy of your advice to read again anytime</div>
   </footer>
+  <div class="toast" id="toast"></div>
 
   <script>
     const chat = document.getElementById('chat');
     const msgEl = document.getElementById('msg');
     const fileEl = document.getElementById('file');
     const preview = document.getElementById('preview');
-    let pendingImage = null; // data URL
-    let farmerName = localStorage.getItem('ad_name') || '';
+    const toastEl = document.getElementById('toast');
+    const STORE = 'ad_history_v1';
+    const GREETING = "🌱 Namaste! I'm Agri-Dosth, your farming friend. 🚜\n\nBefore we begin, tell me a little about yourself so I can help you better:\n\n1️⃣ Your name\n2️⃣ Your village / area (where you farm)\n3️⃣ Your phone number\n\nनमस्ते! अपना नाम, गाँव/क्षेत्र और फ़ोन नंबर बताएँ — फिर मैं आपकी खेती में मदद करूँगा! 🌾";
 
-    // Stable per-browser session id.
+    let pendingImage = null;   // data URL for the next send
+    let farmerName = localStorage.getItem('ad_name') || '';
+    let history = [];          // {w:'me'|'bot', t:text, imgData:dataURL|null, wasImage:bool, ts:number}
+
     let sessionId = localStorage.getItem('ad_session');
     if (!sessionId) { sessionId = 'web-' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('ad_session', sessionId); }
 
-    function bubble(text, who, imgUrl) {
-      const d = document.createElement('div');
-      d.className = 'msg ' + who;
-      if (text) d.textContent = text;
-      if (imgUrl) { const im = document.createElement('img'); im.src = imgUrl; d.appendChild(im); }
-      chat.appendChild(d); chat.scrollTop = chat.scrollHeight; return d;
+    function fmtTime(ts) { const d = new Date(ts); return d.toLocaleString([], { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }); }
+
+    function render(m) {
+      const row = document.createElement('div'); row.className = 'row ' + m.w;
+      const b = document.createElement('div'); b.className = 'msg';
+      if (m.t) b.appendChild(document.createTextNode(m.t));
+      if (m.imgData) { const im = document.createElement('img'); im.src = m.imgData; b.appendChild(im); }
+      else if (m.wasImage) { const p = document.createElement('div'); p.textContent = '📷 (photo you sent)'; p.style.opacity = '.7'; p.style.marginTop = m.t ? '6px' : '0'; b.appendChild(p); }
+      row.appendChild(b);
+      const t = document.createElement('div'); t.className = 'time'; t.textContent = fmtTime(m.ts); row.appendChild(t);
+      chat.appendChild(row); chat.scrollTop = chat.scrollHeight;
     }
 
-    // Greeting — welcome, then ask for the details before helping.
-    bubble('🌱 Namaste! I\'m Agri-Dosth, your farming friend. 🚜\n\nBefore we begin, tell me a little about yourself so I can help you better:\n\n1️⃣ Your name\n2️⃣ Your village / area (where you farm)\n3️⃣ Your phone number\n\nनमस्ते! अपना नाम, गाँव/क्षेत्र और फ़ोन नंबर बताएँ — फिर मैं आपकी खेती में मदद करूँगा! 🌾', 'bot');
+    function persist() {
+      try { localStorage.setItem(STORE, JSON.stringify(history.map(m => ({ w:m.w, t:m.t, wasImage: !!(m.imgData || m.wasImage), ts:m.ts })))); } catch (e) {}
+    }
+    function addMsg(w, text, imgData) {
+      const m = { w, t:text, imgData: imgData || null, wasImage: !!imgData, ts: Date.now() };
+      history.push(m); render(m); persist();
+    }
+
+    // Restore prior chat, or greet a first-time visitor.
+    (function boot() {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (e) {}
+      if (Array.isArray(saved) && saved.length) {
+        history = saved.map(m => ({ w:m.w, t:m.t, imgData:null, wasImage:!!m.wasImage, ts:m.ts || Date.now() }));
+        history.forEach(render);
+      } else {
+        addMsg('bot', GREETING);
+      }
+    })();
+
+    function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(() => toastEl.classList.remove('show'), 2200); }
+
+    // ---- Save chat as a clean, self-contained HTML file ----
+    document.getElementById('saveBtn').onclick = () => {
+      if (!history.length) { toast('Nothing to save yet'); return; }
+      const esc = s => (s || '').replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c]));
+      const rows = history.map(m => {
+        const side = m.w === 'me' ? 'me' : 'bot';
+        const who = m.w === 'me' ? 'You' : 'Agri-Dosth';
+        let body = esc(m.t).replace(/\n/g, '<br>');
+        if (m.imgData) body += (body ? '<br>' : '') + '<img src="' + m.imgData + '" style="max-width:220px;border-radius:8px;margin-top:6px">';
+        else if (m.wasImage) body += (body ? '<br>' : '') + '<i>📷 (photo)</i>';
+        return '<div class="r ' + side + '"><div class="who">' + who + '</div><div class="b">' + body + '</div><div class="t">' + fmtTime(m.ts) + '</div></div>';
+      }).join('');
+      const doc = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agri-Dosth chat</title>'
+        + '<style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f6f3;margin:0;padding:0;color:#1a1a1a}'
+        + 'header{background:#2e7d32;color:#fff;padding:16px 18px}header h1{margin:0;font-size:20px}header p{margin:4px 0 0;font-size:12px;opacity:.9}'
+        + '.wrap{max-width:640px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:8px}'
+        + '.r{max-width:85%}.r.me{align-self:flex-end;text-align:right}.r.bot{align-self:flex-start}'
+        + '.who{font-size:11px;color:#2e7d32;font-weight:700;margin:0 4px 2px}.r.me .who{color:#5a7d1b}'
+        + '.b{display:inline-block;text-align:left;padding:9px 13px;border-radius:13px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);white-space:normal;line-height:1.45}'
+        + '.r.me .b{background:#dcf8c6}.t{font-size:10px;color:#999;margin:2px 4px}'
+        + 'footer{max-width:640px;margin:0 auto;padding:14px 16px 28px;color:#888;font-size:11px;text-align:center}</style>'
+        + '<header><h1>🌱 Agri-Dosth</h1><p>Your farming chat · saved ' + esc(fmtTime(Date.now())) + '</p></header>'
+        + '<div class="wrap">' + rows + '</div>'
+        + '<footer>Agri-Dosth is an AI helper. For exact pesticide doses, confirm with your local KVK / agriculture officer.</footer>';
+      const blob = new Blob([doc], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dt = new Date(); const stamp = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+      a.href = url; a.download = 'AgriDosth-chat-' + stamp + '.html';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      toast('Chat saved 🌱 check your Downloads');
+    };
+
+    document.getElementById('newBtn').onclick = () => {
+      if (!confirm('Start a new chat? Your current chat will be cleared (save it first if you want to keep it).')) return;
+      history = []; localStorage.removeItem(STORE); chat.innerHTML = '';
+      addMsg('bot', GREETING);
+    };
 
     document.getElementById('camBtn').onclick = () => fileEl.click();
     fileEl.onchange = () => {
       const f = fileEl.files[0]; if (!f) return;
-      if (f.size > 8 * 1024 * 1024) { alert('Image too large (max 8 MB).'); fileEl.value=''; return; }
+      if (f.size > 8 * 1024 * 1024) { alert('Image too large (max 8 MB).'); fileEl.value = ''; return; }
       const r = new FileReader();
-      r.onload = () => { pendingImage = r.result; preview.style.display='block'; preview.innerHTML = '<img src="'+pendingImage+'"><span class="x" id="rmimg">✕ remove</span>'; document.getElementById('rmimg').onclick = clearImage; };
+      r.onload = () => { pendingImage = r.result; preview.style.display = 'block'; preview.innerHTML = '<img src="' + pendingImage + '"><span class="x" id="rmimg">✕ remove</span>'; document.getElementById('rmimg').onclick = clearImage; };
       r.readAsDataURL(f);
     };
-    function clearImage(){ pendingImage=null; fileEl.value=''; preview.style.display='none'; preview.innerHTML=''; }
+    function clearImage() { pendingImage = null; fileEl.value = ''; preview.style.display = 'none'; preview.innerHTML = ''; }
 
-    msgEl.addEventListener('input', () => { msgEl.style.height='auto'; msgEl.style.height=Math.min(msgEl.scrollHeight,120)+'px'; });
-    msgEl.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+    msgEl.addEventListener('input', () => { msgEl.style.height = 'auto'; msgEl.style.height = Math.min(msgEl.scrollHeight, 120) + 'px'; });
+    msgEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
     document.getElementById('send').onclick = send;
 
     async function send() {
       const text = msgEl.value.trim();
       if (!text && !pendingImage) return;
-      // Light client-side name capture so the first reply can use it.
-      if (!farmerName && text && text.length < 40 && /(my name is|i am|i'm|naam|mera naam)/i.test(text) === false && chat.children.length <= 2) {
-        // heuristic: treat a short first reply as possibly the name+place; server also extracts it.
-      }
-      bubble(text, 'me', pendingImage || null);
-      const imgToSend = pendingImage; msgEl.value=''; msgEl.style.height='auto'; clearImage();
-      const typing = document.createElement('div'); typing.className='typing'; typing.textContent='Agri-Dosth is typing…'; chat.appendChild(typing); chat.scrollTop=chat.scrollHeight;
+      const imgToSend = pendingImage;
+      addMsg('me', text, imgToSend || null);
+      msgEl.value = ''; msgEl.style.height = 'auto'; clearImage();
+      const typing = document.createElement('div'); typing.className = 'typing'; typing.textContent = 'Agri-Dosth is typing…'; chat.appendChild(typing); chat.scrollTop = chat.scrollHeight;
       try {
-        const res = await fetch('/api/chat', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ sessionId, name: farmerName || undefined, message: text, imageDataUrl: imgToSend || undefined }) });
+        const res = await fetch('/api/chat', { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ sessionId, name: farmerName || undefined, message: text, imageDataUrl: imgToSend || undefined }) });
         const data = await res.json();
         typing.remove();
-        bubble(data.reply || data.error || 'Sorry, something went wrong.', 'bot');
+        addMsg('bot', data.reply || data.error || 'Sorry, something went wrong.');
       } catch (e) {
         typing.remove();
-        bubble('🌱 Network issue — please check your connection and try again.', 'bot');
+        addMsg('bot', '🌱 Network issue — please check your connection and try again.');
       }
     }
   </script>
