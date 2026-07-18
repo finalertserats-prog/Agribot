@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Agri-Dosth 🌱 — Your Farming Friend</title>
+  <style>
+    :root { --green:#2e7d32; --green-d:#1b5e20; --bg:#f4f6f3; --bubble-bot:#ffffff; --bubble-me:#dcf8c6; --ink:#1a1a1a; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin:0; height:100%; }
+    body { font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; height:100dvh; }
+    header { background:var(--green); color:#fff; padding:12px 16px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 6px rgba(0,0,0,.15); }
+    header .logo { font-size:26px; }
+    header h1 { font-size:18px; margin:0; font-weight:700; }
+    header p { margin:2px 0 0; font-size:12px; opacity:.9; }
+    #consent { background:#fffde7; border-bottom:1px solid #eee; color:#5d4037; font-size:12px; padding:8px 16px; line-height:1.4; }
+    #chat { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
+    .msg { max-width:82%; padding:9px 13px; border-radius:14px; font-size:15px; line-height:1.45; white-space:pre-wrap; word-wrap:break-word; box-shadow:0 1px 1px rgba(0,0,0,.08); }
+    .bot { background:var(--bubble-bot); align-self:flex-start; border-top-left-radius:4px; }
+    .me { background:var(--bubble-me); align-self:flex-end; border-top-right-radius:4px; }
+    .me img, .bot img { max-width:100%; border-radius:10px; margin-top:6px; display:block; }
+    .typing { align-self:flex-start; color:#777; font-size:14px; font-style:italic; padding:4px 8px; }
+    footer { padding:10px; background:#fff; border-top:1px solid #e6e6e6; }
+    .row { display:flex; align-items:flex-end; gap:8px; }
+    #msg { flex:1; resize:none; border:1px solid #cfd8dc; border-radius:22px; padding:10px 14px; font-size:15px; max-height:120px; font-family:inherit; }
+    button { border:none; background:var(--green); color:#fff; border-radius:50%; width:44px; height:44px; font-size:20px; cursor:pointer; flex:0 0 auto; }
+    button:active { background:var(--green-d); }
+    button.icon { background:#eceff1; color:var(--green-d); }
+    #preview { display:none; padding:6px 10px 0; }
+    #preview img { max-height:70px; border-radius:8px; border:1px solid #ddd; }
+    #preview .x { color:#c62828; font-size:13px; margin-left:8px; cursor:pointer; }
+    .hint { text-align:center; color:#8a8a8a; font-size:11px; padding:4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo">🌱</span>
+    <div>
+      <h1>Agri-Dosth</h1>
+      <p>Your AI farming friend · किसानों का दोस्त</p>
+    </div>
+  </header>
+  <div id="consent">
+    🔒 Your messages &amp; photos are sent to an AI to help answer you. Ask in any language (हिंदी/English). This is an AI helper — for exact pesticide doses, confirm with your local KVK / agri-officer.
+  </div>
+  <div id="chat"></div>
+  <div id="preview"></div>
+  <footer>
+    <div class="row">
+      <button class="icon" id="camBtn" title="Send a crop photo">📷</button>
+      <input type="file" id="file" accept="image/*" capture="environment" hidden />
+      <textarea id="msg" rows="1" placeholder="Ask about your crops…"></textarea>
+      <button id="send" title="Send">➤</button>
+    </div>
+    <div class="hint">Send a photo of a sick plant for a diagnosis 🌾</div>
+  </footer>
+
+  <script>
+    const chat = document.getElementById('chat');
+    const msgEl = document.getElementById('msg');
+    const fileEl = document.getElementById('file');
+    const preview = document.getElementById('preview');
+    let pendingImage = null; // data URL
+    let farmerName = localStorage.getItem('ad_name') || '';
+
+    // Stable per-browser session id.
+    let sessionId = localStorage.getItem('ad_session');
+    if (!sessionId) { sessionId = 'web-' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('ad_session', sessionId); }
+
+    function bubble(text, who, imgUrl) {
+      const d = document.createElement('div');
+      d.className = 'msg ' + who;
+      if (text) d.textContent = text;
+      if (imgUrl) { const im = document.createElement('img'); im.src = imgUrl; d.appendChild(im); }
+      chat.appendChild(d); chat.scrollTop = chat.scrollHeight; return d;
+    }
+
+    // Greeting.
+    bubble('🌱 Namaste! I\'m Agri-Dosth, your farming friend. Ask me anything about your crops, soil, pests, or plant health — you can even send a photo of a sick plant. What should I call you, and where do you farm?', 'bot');
+
+    document.getElementById('camBtn').onclick = () => fileEl.click();
+    fileEl.onchange = () => {
+      const f = fileEl.files[0]; if (!f) return;
+      if (f.size > 8 * 1024 * 1024) { alert('Image too large (max 8 MB).'); fileEl.value=''; return; }
+      const r = new FileReader();
+      r.onload = () => { pendingImage = r.result; preview.style.display='block'; preview.innerHTML = '<img src="'+pendingImage+'"><span class="x" id="rmimg">✕ remove</span>'; document.getElementById('rmimg').onclick = clearImage; };
+      r.readAsDataURL(f);
+    };
+    function clearImage(){ pendingImage=null; fileEl.value=''; preview.style.display='none'; preview.innerHTML=''; }
+
+    msgEl.addEventListener('input', () => { msgEl.style.height='auto'; msgEl.style.height=Math.min(msgEl.scrollHeight,120)+'px'; });
+    msgEl.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+    document.getElementById('send').onclick = send;
+
+    async function send() {
+      const text = msgEl.value.trim();
+      if (!text && !pendingImage) return;
+      // Light client-side name capture so the first reply can use it.
+      if (!farmerName && text && text.length < 40 && /(my name is|i am|i'm|naam|mera naam)/i.test(text) === false && chat.children.length <= 2) {
+        // heuristic: treat a short first reply as possibly the name+place; server also extracts it.
+      }
+      bubble(text, 'me', pendingImage || null);
+      const imgToSend = pendingImage; msgEl.value=''; msgEl.style.height='auto'; clearImage();
+      const typing = document.createElement('div'); typing.className='typing'; typing.textContent='Agri-Dosth is typing…'; chat.appendChild(typing); chat.scrollTop=chat.scrollHeight;
+      try {
+        const res = await fetch('/api/chat', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ sessionId, name: farmerName || undefined, message: text, imageDataUrl: imgToSend || undefined }) });
+        const data = await res.json();
+        typing.remove();
+        bubble(data.reply || data.error || 'Sorry, something went wrong.', 'bot');
+      } catch (e) {
+        typing.remove();
+        bubble('🌱 Network issue — please check your connection and try again.', 'bot');
+      }
+    }
+  </script>
+</body>
+</html>

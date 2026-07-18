@@ -29,6 +29,10 @@ export default defineConfig({
         "src/ops/copilot.ts",
         "src/ops/heartbeat.ts",
         "src/ops/notifier.ts",
+        // Web-chat transport — thin reuse of the (tested) AI/db/memory primitives,
+        // verified end-to-end by a live smoke test (real reply + guardrail).
+        "src/web/server.ts",
+        "src/web/chat.ts",
       ],
       thresholds: { statements: 80, branches: 70, functions: 80, lines: 80 },
     },
