@@ -9,6 +9,11 @@ export default defineConfig({
     // DATA_DIR points at an isolated temp dir so tests never touch real app data.
     env: {
       GEMINI_API_KEY: "test-key-for-vitest",
+      // Force the mocked Gemini provider in tests and pin it so a developer's
+      // real .env (e.g. OPENAI_API_KEY + LLM_PROVIDER=openai, loaded by dotenv)
+      // can never make the suite hit a live API or bill a real key.
+      LLM_PROVIDER: "gemini",
+      OPENAI_API_KEY: "",
       DATA_DIR: path.join(os.tmpdir(), "agrifriend-test-data"),
       LOG_LEVEL: "fatal", // quiet pino during tests (error-path tests log a lot)
     },
