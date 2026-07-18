@@ -159,7 +159,18 @@ export async function connectWhatsApp(
         logger.warn({ statusCode }, "Connection closed — will reconnect");
         scheduleReconnect(onMessage);
       } else {
-        logger.error("Logged out. Delete auth_info/ and scan the QR again.");
+        // Logged out (401): the saved creds are now dead. Clear them BEFORE
+        // exiting so the process manager's restart comes up on a fresh QR
+        // instead of reloading the invalid session and getting logged out
+        // again — that reload loop hammers WhatsApp and worsens flagging.
+        logger.error(
+          "Logged out by WhatsApp — clearing the session so the next start shows a fresh QR to re-link."
+        );
+        try {
+          fs.rmSync(config.authDir, { recursive: true, force: true });
+        } catch (err) {
+          logger.error({ err }, "Failed to clear auth dir after logout");
+        }
         process.exit(1);
       }
     }
