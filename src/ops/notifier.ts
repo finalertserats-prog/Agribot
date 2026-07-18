@@ -24,13 +24,13 @@ export async function notify(alert: OpsAlert): Promise<void> {
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 5000);
+    const message = `Agri-Dosth ops [${alert.level.toUpperCase()}]: ${alert.reason}`;
     await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        text: `AgriFriend ops [${alert.level.toUpperCase()}]: ${alert.reason}`,
-        ...alert,
-      }),
+      // `text` works for Slack; `content` works for Discord — send both so any
+      // common incoming-webhook URL renders the alert without extra config.
+      body: JSON.stringify({ text: message, content: message, ...alert }),
       signal: controller.signal,
     }).finally(() => clearTimeout(t));
   } catch (err) {
