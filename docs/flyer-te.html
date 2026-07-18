@@ -1,0 +1,135 @@
+<meta charset="utf-8">
+<title>అగ్రి-దోస్త్ — రైతు ఫ్లయర్</title>
+<style>
+  :root{
+    --gold:#e5a93c; --gold-d:#c9821a; --marigold:#f28c1e;
+    --green:#2e6f40; --green-d:#154a2a; --leaf:#6bbd52;
+    --terra:#c05c3e; --terra-d:#9c4429;
+    --cream:#faf6ea; --cream2:#f3e7c9; --paperline:#e8d9b0;
+    --ink:#2b2110; --soft:#7c6a45;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{ background:#c9b98f; font-family:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,"Nirmala UI","Noto Sans Devanagari","Noto Sans Telugu",sans-serif;
+    color:var(--ink); display:flex; justify-content:center; padding:22px 14px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .card{ width:100%; max-width:600px; background:var(--cream); border-radius:22px; overflow:hidden; position:relative; box-shadow:0 22px 60px rgba(30,20,4,.36); }
+  .garland{ display:flex; justify-content:center; gap:2px; background:var(--green-d); padding:9px 6px 8px; }
+  .garland svg{ width:clamp(26px,7vw,34px); height:clamp(26px,7vw,34px); flex:0 0 auto; }
+  .hero{ position:relative; min-height:300px; color:#fff; overflow:hidden; padding:22px 22px 20px; display:flex; }
+  .hero .scene{ position:absolute; inset:0; width:100%; height:100%; z-index:0; }
+  .hero .copy{ position:relative; z-index:2; width:60%; align-self:center; }
+  .hero .farmer{ position:absolute; right:-6px; bottom:0; height:270px; z-index:1; }
+  .kick{ display:inline-block; font-size:12px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; background:var(--gold); color:var(--green-d); padding:4px 12px; border-radius:999px; }
+  .hook{ font-size:clamp(25px,6.4vw,35px); font-weight:900; line-height:1.1; margin-top:14px; text-shadow:0 2px 12px rgba(8,30,15,.5); }
+  .brand{ margin-top:16px; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .brand b{ font-size:clamp(20px,4.4vw,25px); font-weight:900; color:#fff; letter-spacing:-.3px; }
+  .brand b .en{ color:var(--gold); }
+  .brand .role{ font-size:13px; font-weight:700; color:#eaf3e2; opacity:.95; }
+  .scan{ background:var(--cream); padding:24px 22px 8px; text-align:center; }
+  .scan .lead{ font-size:clamp(17px,4.4vw,21px); font-weight:800; color:var(--green-d); line-height:1.3; }
+  .qrow{ display:flex; align-items:center; justify-content:center; gap:20px; margin-top:16px; flex-wrap:wrap; }
+  .qr{ position:relative; background:#fff; padding:13px; border-radius:16px; border:1px solid #eadfbf; box-shadow:0 8px 22px rgba(30,20,4,.18); }
+  .qr::before,.qr::after{ content:""; position:absolute; width:24px; height:24px; border:4px solid var(--marigold); }
+  .qr::before{ top:-5px; left:-5px; border-right:0; border-bottom:0; border-radius:6px 0 0 0; }
+  .qr::after{ bottom:-5px; right:-5px; border-left:0; border-top:0; border-radius:0 0 6px 0; }
+  .qr img{ display:block; width:186px; height:186px; image-rendering:pixelated; }
+  .steps{ text-align:left; display:grid; gap:13px; }
+  .steps .st{ display:flex; align-items:center; gap:11px; }
+  .steps .n{ flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:var(--green); color:#fff; font-weight:900; font-size:15px; display:grid; place-items:center; }
+  .steps .st:nth-child(2) .n{ background:var(--gold-d); }
+  .steps .st:nth-child(3) .n{ background:var(--terra); }
+  .steps .lbl{ font-size:15px; font-weight:800; color:var(--ink); line-height:1.25; }
+  .cta{ display:inline-block; margin-top:18px; background:var(--marigold); color:#fff; font-size:17px; font-weight:900; letter-spacing:.3px; padding:11px 26px; border-radius:999px; box-shadow:0 5px 0 var(--gold-d); }
+  .url{ margin-top:12px; font-size:13px; font-weight:700; color:var(--soft); }
+  .url b{ color:var(--terra); }
+  .feats{ list-style:none; padding:22px 24px 4px; display:grid; gap:16px; }
+  .feats li{ display:flex; align-items:center; gap:15px; }
+  .badge{ flex:0 0 auto; width:52px; height:52px; border-radius:15px; display:grid; place-items:center; background:linear-gradient(150deg,var(--green),var(--leaf)); box-shadow:0 6px 13px rgba(46,111,64,.3); }
+  .badge.g{ background:linear-gradient(150deg,var(--gold-d),var(--gold)); box-shadow:0 6px 13px rgba(201,130,26,.32); }
+  .badge.t{ background:linear-gradient(150deg,var(--terra-d),var(--terra)); box-shadow:0 6px 13px rgba(156,68,41,.32); }
+  .badge svg{ width:27px; height:27px; stroke:#fff; fill:none; stroke-width:2.1; stroke-linecap:round; stroke-linejoin:round; }
+  .feats .txt{ font-size:16px; font-weight:800; line-height:1.3; }
+  .langs{ margin:20px 24px 2px; background:var(--cream2); border-radius:14px; padding:12px 16px; text-align:center; border:1px dashed var(--paperline); }
+  .langs b{ display:block; font-size:14.5px; font-weight:900; color:var(--green-d); }
+  .langs span{ font-size:13px; font-weight:700; color:var(--terra-d); }
+  .foot{ margin-top:20px; background:var(--green-d); color:#e9f1e4; padding:16px 24px 20px; text-align:center; }
+  .foot .safe{ font-size:12px; line-height:1.55; opacity:.92; }
+  .foot .sign{ margin-top:9px; font-size:15px; font-weight:900; color:var(--gold); }
+  @page{ size:A4; margin:7mm; }
+  @media (max-width:420px){ .hero .copy{ width:64%; } .hero .farmer{ height:224px; right:-42px; } }
+  @media print{ body{ background:#fff; padding:0; } .card{ box-shadow:none; border-radius:0; max-width:100%; transform:scale(.96); transform-origin:top center; } }
+</style>
+
+<div class="card">
+  <div class="garland"><svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg><svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg><svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg><svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg><svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg><svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg><svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg><svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg><svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg><svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg><svg viewBox="0 0 40 40"><g><circle cx="20" cy="20" r="13" fill="#f28c1e"/><g fill="#e5a93c"><circle cx="20" cy="6" r="5"/><circle cx="30" cy="10" r="5"/><circle cx="34" cy="20" r="5"/><circle cx="30" cy="30" r="5"/><circle cx="20" cy="34" r="5"/><circle cx="10" cy="30" r="5"/><circle cx="6" cy="20" r="5"/><circle cx="10" cy="10" r="5"/></g><circle cx="20" cy="20" r="6" fill="#c9821a"/></g></svg></div>
+
+  <div class="hero">
+    <svg class="scene" viewBox="0 0 600 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1f6b3a"/><stop offset="0.6" stop-color="#2e7d46"/><stop offset="1" stop-color="#4f9a4a"/></linearGradient>
+        <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffe6a1"/><stop offset="0.5" stop-color="#f4b53a"/><stop offset="1" stop-color="#f4b53a" stop-opacity="0"/></radialGradient>
+      </defs>
+      <rect width="600" height="300" fill="url(#sky)"/>
+      <circle cx="300" cy="70" r="130" fill="url(#sun)" opacity="0.85"/>
+      <circle cx="300" cy="70" r="40" fill="#ffd24d" opacity="0.9"/>
+      <path d="M0 214 Q150 178 300 204 T600 196 V300 H0 Z" fill="#2f8347" opacity="0.8"/>
+      <path d="M0 248 Q160 218 330 246 T600 238 V300 H0 Z" fill="#1c6b39"/>
+      <g stroke="#0f4a26" stroke-width="2" opacity="0.5" fill="none"><path d="M-20 278 Q300 260 620 278"/><path d="M-20 290 Q300 272 620 290"/></g>
+      <path d="M0 276 Q150 258 300 276 T600 272 V300 H0 Z" fill="#0f4a26"/>
+    </svg>
+    <div class="copy">
+      <span class="kick">రైతు నేస్తం</span>
+      <div class="hook">పంటల్లో సమస్యా?<br>అడగండి చాలు.</div>
+      <div class="brand"><b>అగ్రి-దోస్త్ <span class="en">Agri-Dosth</span></b><span class="role">· వ్యవసాయంలో మీ AI తోడు</span></div>
+    </div>
+    <svg class="farmer" viewBox="0 0 200 270" aria-hidden="true">
+      <ellipse cx="100" cy="262" rx="66" ry="10" fill="#0c3c20" opacity="0.35"/>
+      <path d="M56 262 Q52 170 78 150 L122 150 Q148 170 144 262 Z" fill="#f4ede0"/>
+      <path d="M56 262 Q54 210 62 180 L74 262 Z" fill="#e6dcc7"/>
+      <path d="M78 150 L96 150 L86 214 L72 208 Z" fill="#e5673b"/>
+      <path d="M78 150 L96 150 L86 214 L72 208 Z" fill="none" stroke="#b9431f" stroke-width="2" stroke-dasharray="3 5"/>
+      <path d="M78 158 Q52 172 48 120 L64 116 Q70 158 86 156 Z" fill="#e6b487"/>
+      <rect x="30" y="88" width="40" height="60" rx="8" fill="#20323a"/>
+      <rect x="35" y="94" width="30" height="42" rx="4" fill="#dff5e0"/>
+      <rect x="39" y="100" width="18" height="6" rx="3" fill="#2e7d46"/>
+      <rect x="39" y="110" width="22" height="6" rx="3" fill="#cfe8cf"/>
+      <rect x="39" y="120" width="14" height="6" rx="3" fill="#cfe8cf"/>
+      <ellipse cx="64" cy="128" rx="8" ry="11" fill="#e6b487"/>
+      <path d="M122 158 Q150 168 156 128 L142 122 Q136 156 120 154 Z" fill="#e6b487"/>
+      <path d="M150 128 Q168 108 156 92 Q142 108 150 128 Z" fill="#5aa845"/>
+      <path d="M154 122 L152 100" stroke="#2e6f40" stroke-width="2" fill="none"/>
+      <rect x="90" y="132" width="20" height="16" fill="#d89f6f"/>
+      <circle cx="100" cy="112" r="27" fill="#e6b487"/>
+      <circle cx="74" cy="112" r="5" fill="#e6b487"/><circle cx="126" cy="112" r="5" fill="#e6b487"/>
+      <path d="M73 102 Q78 72 100 72 Q122 72 127 102 Q118 90 100 90 Q82 90 73 102 Z" fill="#f28c1e"/>
+      <path d="M73 100 Q88 92 100 92 Q112 92 127 100 Q100 106 73 100 Z" fill="#e5a93c"/>
+      <path d="M124 90 Q140 86 138 102 Q130 98 124 96 Z" fill="#e5a93c"/>
+      <circle cx="91" cy="113" r="2.6" fill="#3a2a18"/><circle cx="109" cy="113" r="2.6" fill="#3a2a18"/>
+      <path d="M90 127 Q100 135 110 127" stroke="#7a4a24" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      <path d="M88 121 Q100 125 112 121" stroke="#5a3a1c" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <div class="scan">
+    <div class="lead">రోగం వచ్చిన మొక్క ఫోటో పంపండి — సలహా పొందండి</div>
+    <div class="qrow">
+      <div class="qr"><img src="data:image/png;base64,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qQYAgKkGAICpBgCAqa8A3+LusvDeyye5uyy897Ly3stP9N7Lwt3l07z3wq/dXT7Ney/8WgMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMDUV/grvffC3+W9l4W7y8J7Lz/V3WXhvZeFu8vCey+f5r2XhbsLv/beC3+XBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpr/Bt7i78d91dfqK7C9/j7vJTvfeycHf5JO+9fJq7y8J7L/xaAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwFQDAMBUAwDAVAMAwNS9fwQAgJkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqQYAgKkGAICpBgCAqf8BvH583XTV6OsAAAAASUVORK5CYII=" alt="Scan Agri-Dosth" /></div>
+      <div class="steps">
+        <div class="st"><span class="n">1</span><span class="lbl">మీ ఫోన్ కెమెరా తెరవండి</span></div>
+        <div class="st"><span class="n">2</span><span class="lbl">ఈ QR కోడ్‌ని స్కాన్ చేయండి</span></div>
+        <div class="st"><span class="n">3</span><span class="lbl">మాట్లాడటం మొదలుపెట్టండి</span></div>
+      </div>
+    </div>
+    <span class="cta">ఇప్పుడే స్కాన్ చేయండి</span>
+    <div class="url">లేదా మీ బ్రౌజర్‌లో ఓపెన్ చేయండి: <b>187.127.166.193:8090</b></div>
+  </div>
+
+  <ul class="feats">
+    <li><span class="badge"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.3A8 8 0 1 1 21 12Z"/><path d="M8.5 11h7M8.5 14h4"/></svg></span><span class="txt">వ్యవసాయం, పంటలు లేదా మట్టి గురించి ఏదైనా అడగండి</span></li>
+    <li><span class="badge g"><svg viewBox="0 0 24 24"><path d="M3 8h3l1.5-2h9L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.4"/></svg></span><span class="txt">ఫోటోతో పంట తెగుళ్లు మరియు పురుగులను గుర్తించండి</span></li>
+    <li><span class="badge t"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.5 2.6 15 0 18M12 3c-2.6 2.5-2.6 15 0 18"/></svg></span><span class="txt">మీ సొంత భాషలో ఎప్పుడైనా మాట్లాడండి</span></li>
+  </ul>
+
+  <div class="langs"><b>మీ సొంత భాషలోనే అందుబాటులో ఉంది</b><span>తెలుగు • हिंदी • English • தமிழ் • मराठी</span></div>
+
+  <div class="foot"><p class="safe">అగ్రి-దోస్త్ ఒక AI సహాయకుడు మాత్రమే. పురుగుమందుల కచ్చితమైన మోతాదుల కోసం మీ స్థానిక KVK లేదా వ్యవసాయ అధికారిని సంప్రదించి నిర్ధారించుకోండి.</p><div class="sign">🌱 అగ్రి-దోస్త్ — ప్రతి రైతుకూ ఒక నేస్తం</div></div>
+</div>
