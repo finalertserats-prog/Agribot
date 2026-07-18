@@ -1,7 +1,6 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { config } from "../config";
 import { atomicWrite, createDebouncedSaver, type DebouncedSaver } from "./persist";
-import { withRetry } from "./gemini";
+import { getProvider, withRetry } from "./llm";
 import { logger } from "./logger";
 import path from "path";
 import fs from "fs";
@@ -15,7 +14,7 @@ interface VectorEntry {
 }
 
 let entries: VectorEntry[] = [];
-let embeddingModel: ReturnType<GoogleGenerativeAI["getGenerativeModel"]>;
+let ready = false;
 let binPath: string;
 let saver: DebouncedSaver;
 
@@ -34,15 +33,14 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 export function initMemory(): void {
-  if (!config.geminiApiKey) return;
-
   const dir = path.dirname(config.vectorPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-  binPath = config.vectorPath + "_entries.json";
-
-  const genAI = new GoogleGenerativeAI(config.geminiApiKey);
-  embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+  // Namespace the store by provider: embedding dimensions differ between
+  // backends (e.g. Gemini text-embedding-004 vs OpenAI text-embedding-3), so a
+  // provider switch must not compare vectors against another backend's memories.
+  binPath = `${config.vectorPath}_${config.llm.provider}_entries.json`;
+  ready = true;
 
   if (fs.existsSync(binPath)) {
     try {
@@ -66,8 +64,8 @@ export async function flushMemory(): Promise<void> {
 
 async function getEmbedding(text: string): Promise<number[]> {
   // Retry on transient 429s so a rate-limit blip doesn't silently drop a memory.
-  const result = await withRetry(() => embeddingModel.embedContent(text));
-  return result.embedding.values;
+  // Provider-agnostic: whichever backend is configured supplies the vector.
+  return withRetry(() => getProvider().embed(text));
 }
 
 export async function storeMemory(
@@ -75,7 +73,7 @@ export async function storeMemory(
   userId: string,
   groupId: string
 ): Promise<void> {
-  if (!embeddingModel) return;
+  if (!ready) return;
 
   const embedding = await getEmbedding(text);
 
@@ -114,7 +112,7 @@ export async function queryMemory(
   userId: string,
   limit = 3
 ): Promise<string[]> {
-  if (!embeddingModel) return [];
+  if (!ready) return [];
 
   // Filter to THIS user first — never embed the query or score other users'
   // memories. Also skip the (paid) embedding call entirely when the user has

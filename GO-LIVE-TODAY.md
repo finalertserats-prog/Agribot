@@ -22,11 +22,20 @@ VPS install steps see **SETUP.md**; this doc adds the pilot-safety layer.
 
 ## What you need (10 minutes of your time)
 
-1. **A Gemini API key** — free, from https://aistudio.google.com/apikey
+1. **An AI key — either provider works:**
+   - **Gemini** (free) — https://aistudio.google.com/apikey → set `GEMINI_API_KEY`
+   - **OpenAI** — https://platform.openai.com/api-keys → set `OPENAI_API_KEY`
+   - Set at least one. The bot auto-selects whichever key is present; set
+     `LLM_PROVIDER=gemini|openai` to force one when both are configured. See
+     `.env.example` for model overrides.
 2. **A dedicated WhatsApp number** — a spare SIM / second number. The bot logs
    in *as* this number. **Never use your personal number.**
 3. **A host to run it 24/7** — the Hostinger VPS from SETUP.md (or any Linux box
    / a laptop that stays on for the pilot).
+
+> **One AI provider per deployment.** Semantic memory embeddings are
+> provider-specific — don't switch providers on a running bot with existing
+> memories. To switch, start with a fresh vector store (`data/vectors_*`).
 
 ---
 

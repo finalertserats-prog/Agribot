@@ -29,13 +29,13 @@ import { initMemory, storeMemory, queryMemory } from "../src/lib/memory";
 
 beforeAll(() => {
   // Start from a clean vector store so accumulation is predictable.
-  const bin = config.vectorPath + "_entries.json";
+  const bin = `${config.vectorPath}_${config.llm.provider}_entries.json`;
   if (fs.existsSync(bin)) fs.rmSync(bin);
   initMemory();
 });
 
 afterAll(() => {
-  const bin = config.vectorPath + "_entries.json";
+  const bin = `${config.vectorPath}_${config.llm.provider}_entries.json`;
   if (fs.existsSync(bin)) fs.rmSync(bin);
 });
 

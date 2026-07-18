@@ -65,8 +65,7 @@ async function main(): Promise<void> {
   await initDB();
   logger.info("Database initialized");
 
-  initGemini();
-  logger.info("Gemini AI connected");
+  initGemini(); // initializes the configured AI provider (Gemini or OpenAI)
 
   initMemory();
   logger.info("RAG memory system ready");

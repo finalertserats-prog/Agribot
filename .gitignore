@@ -3,6 +3,8 @@ dist/
 data/
 auth_info/
 .env
+.env.*
+*.txt
 *.db
 *.db-journal
 coverage/

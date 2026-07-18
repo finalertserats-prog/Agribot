@@ -29,11 +29,24 @@ const SYSTEM_PROMPT = `You are AgriFriend — an expert community member and far
  * fast with a clear message instead of surfacing as a cryptic runtime error
  * on the first message.
  */
-const envSchema = z.object({
-  GEMINI_API_KEY: z
-    .string()
-    .min(1, "GEMINI_API_KEY is required — get one at https://aistudio.google.com/apikey"),
-  BOT_TRIGGER: z.string().min(1).default("agrifriend"),
+// Treat a blank env var (e.g. a leftover `OPENAI_API_KEY=` in .env) as unset,
+// so an empty placeholder never fails validation or forces a provider.
+const blankToUndef = (v: unknown): unknown =>
+  typeof v === "string" && v.trim() === "" ? undefined : v;
+
+const envSchema = z
+  .object({
+    // AI provider keys — supply at least one. The bot picks a provider from
+    // whichever key is present (or LLM_PROVIDER if you want to force one).
+    GEMINI_API_KEY: z.preprocess(blankToUndef, z.string().min(1).optional()),
+    OPENAI_API_KEY: z.preprocess(blankToUndef, z.string().min(1).optional()),
+    LLM_PROVIDER: z.preprocess(blankToUndef, z.enum(["gemini", "openai"]).optional()),
+    // Per-provider model overrides (sensible defaults below).
+    GEMINI_TEXT_MODEL: z.string().min(1).default("gemini-2.0-flash"),
+    GEMINI_EMBED_MODEL: z.string().min(1).default("text-embedding-004"),
+    OPENAI_TEXT_MODEL: z.string().min(1).default("gpt-4o-mini"),
+    OPENAI_EMBED_MODEL: z.string().min(1).default("text-embedding-3-small"),
+    BOT_TRIGGER: z.string().min(1).default("agrifriend"),
   LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
     .default("info"),
@@ -44,7 +57,26 @@ const envSchema = z.object({
   OPS_WEBHOOK_URL: z.string().url().optional(),
   // Policy Engine kill switch (optional; "false" disables proactive outbound).
   PROACTIVE_ENABLED: z.enum(["true", "false"]).optional(),
-});
+  })
+  .refine((e) => resolveProviderName(e) !== null, {
+    message:
+      "No AI key configured. Set GEMINI_API_KEY or OPENAI_API_KEY " +
+      "(get a free Gemini key at https://aistudio.google.com/apikey). " +
+      "Optionally set LLM_PROVIDER=gemini|openai to force one.",
+  });
+
+// Which provider to use: an explicit LLM_PROVIDER wins (but only if its key is
+// present); otherwise auto-select from whichever key is configured, preferring
+// Gemini. Returns null when nothing usable is set (drives the refine above).
+export function resolveProviderName(
+  e: { LLM_PROVIDER?: "gemini" | "openai"; GEMINI_API_KEY?: string; OPENAI_API_KEY?: string }
+): "gemini" | "openai" | null {
+  if (e.LLM_PROVIDER === "gemini") return e.GEMINI_API_KEY ? "gemini" : null;
+  if (e.LLM_PROVIDER === "openai") return e.OPENAI_API_KEY ? "openai" : null;
+  if (e.GEMINI_API_KEY) return "gemini";
+  if (e.OPENAI_API_KEY) return "openai";
+  return null;
+}
 
 function loadEnv(): z.infer<typeof envSchema> {
   const parsed = envSchema.safeParse(process.env);
@@ -61,8 +93,25 @@ function loadEnv(): z.infer<typeof envSchema> {
 
 const env = loadEnv();
 
+const llmProvider = resolveProviderName(env) as "gemini" | "openai"; // refine guarantees non-null
+
 export const config = {
   geminiApiKey: env.GEMINI_API_KEY,
+  // Provider-agnostic AI configuration. `provider` is the resolved backend; the
+  // per-provider blocks carry the key + model names the factory needs.
+  llm: {
+    provider: llmProvider,
+    gemini: {
+      apiKey: env.GEMINI_API_KEY,
+      textModel: env.GEMINI_TEXT_MODEL,
+      embedModel: env.GEMINI_EMBED_MODEL,
+    },
+    openai: {
+      apiKey: env.OPENAI_API_KEY,
+      textModel: env.OPENAI_TEXT_MODEL,
+      embedModel: env.OPENAI_EMBED_MODEL,
+    },
+  },
   botTrigger: env.BOT_TRIGGER,
   logLevel: env.LOG_LEVEL,
   authDir: "./auth_info",
