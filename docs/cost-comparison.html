@@ -1,0 +1,143 @@
+<meta charset="utf-8">
+<title>Agri-Dosth — Cost &amp; Approach Comparison</title>
+<style>
+  :root{
+    --bg:#f5f2ea; --panel:#ffffff; --ink:#22201a; --soft:#6d6555; --line:#e6e0d2;
+    --green:#2e6f40; --green-soft:#e7f0e6; --gold:#c9821a; --gold-soft:#fbf0d8;
+    --terra:#c05c3e; --terra-soft:#f6e3da; --good:#2e7d46; --warn:#c9821a; --bad:#c0392b;
+    --best-bg:#eaf5ec; --best-line:#2e6f40;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#191712; --panel:#221f18; --ink:#f0ece0; --soft:#a89e88; --line:#352f24;
+      --green:#6bbf7f; --green-soft:#1e2a20; --gold:#e5a93c; --gold-soft:#2a2416; --terra:#e08a68; --terra-soft:#2c1f18;
+      --good:#6bbf7f; --warn:#e5a93c; --bad:#e0685a; --best-bg:#1d2a20; --best-line:#6bbf7f; }
+  }
+  :root[data-theme="dark"]{ --bg:#191712; --panel:#221f18; --ink:#f0ece0; --soft:#a89e88; --line:#352f24;
+    --green:#6bbf7f; --green-soft:#1e2a20; --gold:#e5a93c; --gold-soft:#2a2416; --terra:#e08a68; --terra-soft:#2c1f18;
+    --good:#6bbf7f; --warn:#e5a93c; --bad:#e0685a; --best-bg:#1d2a20; --best-line:#6bbf7f; }
+  :root[data-theme="light"]{ --bg:#f5f2ea; --panel:#ffffff; --ink:#22201a; --soft:#6d6555; --line:#e6e0d2;
+    --green:#2e6f40; --green-soft:#e7f0e6; --gold:#c9821a; --gold-soft:#fbf0d8; --terra:#c05c3e; --terra-soft:#f6e3da;
+    --good:#2e7d46; --warn:#c9821a; --bad:#c0392b; --best-bg:#eaf5ec; --best-line:#2e6f40; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{ background:var(--bg); color:var(--ink); font-family:"Segoe UI",system-ui,-apple-system,"Nirmala UI",sans-serif;
+    line-height:1.5; padding:28px 18px; }
+  .wrap{ max-width:940px; margin:0 auto; }
+  header{ margin-bottom:20px; }
+  .eyebrow{ font-size:12px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:var(--gold); }
+  h1{ font-size:clamp(24px,4.5vw,32px); font-weight:900; letter-spacing:-.4px; margin-top:4px; }
+  .sub{ color:var(--soft); font-size:14.5px; margin-top:6px; max-width:62ch; }
+
+  .scroll{ overflow-x:auto; margin-top:22px; border:1px solid var(--line); border-radius:14px; }
+  table{ border-collapse:collapse; width:100%; min-width:680px; background:var(--panel); }
+  th,td{ text-align:left; padding:13px 15px; border-bottom:1px solid var(--line); vertical-align:top; font-size:14px; }
+  thead th{ position:sticky; top:0; background:var(--panel); font-size:13px; }
+  tbody th{ font-weight:700; color:var(--soft); width:180px; white-space:nowrap; }
+  .col-h{ font-weight:900; font-size:15.5px; }
+  .col-h .tag{ display:block; font-size:11.5px; font-weight:800; letter-spacing:.5px; margin-top:4px; }
+  .c-web .col-h{ color:var(--green); } .c-web .tag{ color:var(--good); }
+  .c-wa .col-h{ color:var(--gold); } .c-wa .tag{ color:var(--warn); }
+  .c-bail .col-h{ color:var(--terra); } .c-bail .tag{ color:var(--bad); }
+  /* highlight recommended/current column */
+  col.best, .best{ background:var(--best-bg); }
+  th.best, td.best{ border-left:2px solid var(--best-line); border-right:2px solid var(--best-line); }
+  thead th.best{ border-top:2px solid var(--best-line); border-radius:10px 10px 0 0; }
+  .pill{ display:inline-block; font-size:11px; font-weight:800; padding:2px 9px; border-radius:999px; }
+  .p-good{ background:var(--green-soft); color:var(--good); }
+  .p-warn{ background:var(--gold-soft); color:var(--warn); }
+  .p-bad{ background:var(--terra-soft); color:var(--bad); }
+  .num{ font-variant-numeric:tabular-nums; font-weight:800; }
+  td small{ display:block; color:var(--soft); font-size:12px; margin-top:2px; font-weight:400; }
+
+  .note{ margin-top:18px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; font-size:12.5px; color:var(--soft); }
+  .note b{ color:var(--ink); }
+  .note ul{ margin:6px 0 0 18px; } .note li{ margin:3px 0; }
+  footer{ margin-top:16px; font-size:12px; color:var(--soft); }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">🌱 Agri-Dosth · Decision Sheet</div>
+    <h1>How we reach farmers — cost &amp; approach</h1>
+    <p class="sub">Three ways to put Agri-Dosth in farmers' hands, side by side. All figures in ₹ (INR), for a small supervised pilot (~100–500 farmers), current as of July 2026.</p>
+  </header>
+
+  <div class="scroll">
+    <table>
+      <colgroup><col><col class="best"><col><col></colgroup>
+      <thead>
+        <tr>
+          <th></th>
+          <th class="best c-web"><span class="col-h">In-Built Chat Box</span><span class="tag">✅ LIVE NOW · what we built</span></th>
+          <th class="c-wa"><span class="col-h">WhatsApp — Official API</span><span class="tag">RECOMMENDED FOR SCALE</span></th>
+          <th class="c-bail"><span class="col-h">WhatsApp — Baileys</span><span class="tag">✗ TRIED · NOT VIABLE</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>The approach</th>
+          <td class="best">Our own web chat page. Farmer scans a QR / opens a link and chats in the browser.</td>
+          <td>Meta's official Cloud API (direct, or via a BSP like 360dialog). Sanctioned automation.</td>
+          <td>Un-official WhatsApp Web automation (reverse-engineered).</td>
+        </tr>
+        <tr>
+          <th>How farmers reach it</th>
+          <td class="best">Scan QR / tap a link (browser). One tap of friction.</td>
+          <td>Message a WhatsApp number — where farmers already are. Lowest friction.</td>
+          <td>Same as official, but the number keeps dropping.</td>
+        </tr>
+        <tr>
+          <th>Server / hosting</th>
+          <td class="best"><span class="num">₹500–1,000</span>/mo<small>The VPS you already run.</small></td>
+          <td><span class="num">₹500–1,000</span>/mo<small>Same VPS + a public webhook.</small></td>
+          <td><span class="num">₹500–1,000</span>/mo<small>Same VPS.</small></td>
+        </tr>
+        <tr>
+          <th>WhatsApp / messaging</th>
+          <td class="best"><span class="pill p-good">₹0</span><small>No per-message cost — it's not WhatsApp.</small></td>
+          <td><span class="num">₹0</span> now, then <span class="num">~₹0.115</span>/msg<small>Replies within the 24-hr window are free until 30 Sep 2026, billable after. BSP platform fee ~₹1,000–2,000/mo (₹0 if direct to Meta).</small></td>
+          <td><span class="pill p-good">₹0</span><small>Free — but see reliability.</small></td>
+        </tr>
+        <tr>
+          <th>AI (OpenAI) usage</th>
+          <td class="best"><span class="num">~₹250–850</span>/mo<small>gpt-4o-mini — text + photo. Same for all three.</small></td>
+          <td><span class="num">~₹250–850</span>/mo</td>
+          <td><span class="num">~₹250–850</span>/mo</td>
+        </tr>
+        <tr>
+          <th>Reliability / ban risk</th>
+          <td class="best"><span class="pill p-good">Rock-solid</span><small>No bans possible. 24/7.</small></td>
+          <td><span class="pill p-good">Rock-solid</span><small>Official &amp; sanctioned. No bans.</small></td>
+          <td><span class="pill p-bad">Gets banned</span><small>The number was logged out repeatedly — proven not viable.</small></td>
+        </tr>
+        <tr>
+          <th>Setup time</th>
+          <td class="best"><span class="pill p-good">Live today</span></td>
+          <td><span class="pill p-warn">Days</span><small>Meta business verification. Or ~15 min via a BSP sandbox to start.</small></td>
+          <td><span class="pill p-bad">Unstable</span><small>Instant, but breaks within minutes.</small></td>
+        </tr>
+        <tr>
+          <th>Est. total / month</th>
+          <td class="best"><span class="num" style="font-size:18px">₹750–1,850</span><small>Server + AI. That's it.</small></td>
+          <td><span class="num" style="font-size:18px">₹1,500–3,500</span><small>Server + AI + (optional) BSP fee + messaging after Oct 2026.</small></td>
+          <td><span class="num" style="font-size:18px">₹750–1,850</span><small>Cheap, but unusable.</small></td>
+        </tr>
+        <tr>
+          <th>Best for</th>
+          <td class="best">Proving value <b>now</b> with zero risk &amp; near-zero cost.</td>
+          <td>Real reach on the channel farmers already use, at scale.</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <b>The plan in one line:</b> run the <b>In-Built Chat Box</b> now (live, ~₹1,000/mo, no risk) to prove farmers love Agri-Dosth → start Meta verification in parallel → move to the <b>Official WhatsApp API</b> for scale once approved.
+    <ul>
+      <li><b>Assumptions:</b> small supervised pilot (~100–500 farmers, a few messages each). AI cost scales with usage; heavy photo use pushes it higher.</li>
+      <li><b>WhatsApp pricing note:</b> Meta moved to per-message billing (Jul 2025); service replies inside the 24-hr window are free until <b>30 Sep 2026</b>, then ~₹0.115/msg. India rates, reconfirm before committing.</li>
+      <li><b>GST (18%)</b> applies on WhatsApp/BSP charges in India.</li>
+    </ul>
+  </div>
+  <footer>Agri-Dosth · internal decision sheet · figures indicative, July 2026</footer>
+</div>
