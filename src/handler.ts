@@ -8,7 +8,11 @@ import {
   updateUserProfile,
   saveInteraction,
   getRecentInteractions,
+  isOptedOut,
+  setOptOut,
+  clearOptOut,
 } from "./lib/database";
+import { isOptOutMessage, isResumeMessage } from "./policy/consent";
 import { storeMemory, queryMemory } from "./lib/memory";
 import {
   FARMING_ONLY_REPLY,
@@ -143,6 +147,31 @@ export async function handleMessage(
       });
       return;
     }
+  }
+
+  // Consent / opt-out gate — honored before any AI spend and durable across
+  // restarts (backed by the optouts table). An opted-out farmer hears nothing
+  // from us until they explicitly resume, so a "STOP" is respected even if the
+  // process crashes and WhatsApp redelivers the message on reconnect.
+  if (isOptedOut(senderJid)) {
+    if (text && isResumeMessage(text)) {
+      await clearOptOut(senderJid);
+      await socket.sendMessage(remoteJid, {
+        text: `🌱 Welcome back, ${pushName}! You're re-subscribed. Ask me anything about farming. Reply STOP anytime to unsubscribe.`,
+      });
+    }
+    // Opted out and not resuming → stay silent; replying would defeat the opt-out.
+    return;
+  }
+
+  if (text && isOptOutMessage(text)) {
+    // Persist the opt-out to disk BEFORE confirming, so the promise we make the
+    // farmer ("you won't receive further replies") is durable across a restart.
+    await setOptOut(senderJid);
+    await socket.sendMessage(remoteJid, {
+      text: `👋 You've been unsubscribed, ${pushName}. You won't receive further replies. Reply START anytime to resume.`,
+    });
+    return;
   }
 
   // Rate limit the expensive AI path (per user) BEFORE any Gemini call —

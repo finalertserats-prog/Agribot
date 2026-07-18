@@ -10,6 +10,9 @@ import {
   sanitizeProfileField,
   mergeFacts,
   flushDB,
+  setOptOut,
+  clearOptOut,
+  isOptedOut,
 } from "../src/lib/database";
 import { config } from "../src/config";
 
@@ -77,5 +80,28 @@ describe("database round-trip", () => {
 
   it("returns empty array for an unknown user", () => {
     expect(getRecentInteractions("nobody@s.whatsapp.net")).toEqual([]);
+  });
+
+  it("records and reads back an opt-out", async () => {
+    const jid = "optout@s.whatsapp.net";
+    expect(isOptedOut(jid)).toBe(false);
+    await setOptOut(jid);
+    expect(isOptedOut(jid)).toBe(true);
+  });
+
+  it("clears an opt-out on resume", async () => {
+    const jid = "resume@s.whatsapp.net";
+    await setOptOut(jid);
+    await clearOptOut(jid);
+    expect(isOptedOut(jid)).toBe(false);
+  });
+
+  it("opt-out survives a reload without an explicit flush (restart safety)", async () => {
+    // setOptOut flushes to disk itself — no flushDB() here on purpose, to prove
+    // the durability comes from the write, not the test.
+    const jid = "durable@s.whatsapp.net";
+    await setOptOut(jid);
+    await initDB(); // simulate a process restart: reload from disk
+    expect(isOptedOut(jid)).toBe(true);
   });
 });

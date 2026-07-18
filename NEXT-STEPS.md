@@ -101,9 +101,12 @@ layer is a scaffold. 150 tests / 84% coverage / never run live at scale.
   real only in the proactive half; the reactive layer is single-tenant (one socket/DB/vectors).
 
 **Prioritized action list (do in this order):**
-1. **Wire opt-out into the live path** (small, high-value bug fix): call `isOptOutMessage`
-   in `handler.ts`; on match, flip a *persisted* consent record. Bridge reactive `senderJid`
-   ↔ proactive consent store.
+1. ✅ **DONE (2026-07-18).** Wire opt-out into the live path. `handler.ts` now calls
+   `isOptOutMessage`/`isResumeMessage` before any AI spend; opt-outs persist to a durable
+   `optouts` table (flushed to disk before the confirmation is sent, so a crash/redelivery
+   can't lose a STOP). Keyword list hardened after Codex review + Gemini domain research
+   (dropped ambiguous bare `nahi`/`band`/`bas`; added clear Hinglish phrases). +8 tests,
+   158 total, 84.9% coverage. See `GO-LIVE-TODAY.md` for the reactive-pilot runbook.
 2. **Persist the safety-critical stores** (THE #1 blocker, all reviewers): move ConsentStore,
    IdempotencyStore, FrequencyGuard, ApprovalQueue, DeliveryStore, OutcomeStore from in-memory
    Map/Set to a real DB (Postgres). Idempotency via `UNIQUE(tenant,farmer,template,day)`;

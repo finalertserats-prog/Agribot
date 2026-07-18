@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { riskOf, requiresApproval } from "../src/policy/risk";
 import { isApprovedTemplate, renderTemplate, sanitizeVar } from "../src/policy/templates";
-import { ConsentStore, isOptOutMessage } from "../src/policy/consent";
+import { ConsentStore, isOptOutMessage, isResumeMessage } from "../src/policy/consent";
 import { FrequencyGuard, isQuietHours } from "../src/policy/frequency";
 import { IdempotencyStore, idempotencyKey, dayStampFor } from "../src/policy/idempotency";
 import { MemoryAuditSink } from "../src/policy/audit";
@@ -55,6 +55,26 @@ describe("consent", () => {
     expect(isOptOutMessage("  Band Karo. ")).toBe(true);
     expect(isOptOutMessage("how do I grow tomatoes")).toBe(false);
     expect(isOptOutMessage("")).toBe(false);
+  });
+
+  it("does NOT opt out farming questions that merely start with a keyword", () => {
+    // Regression: leading-prefix matching used to unsubscribe these.
+    expect(isOptOutMessage("stop aphids from eating my crop")).toBe(false);
+    expect(isOptOutMessage("how do I stop leaf curl")).toBe(false);
+    expect(isOptOutMessage("nahi, my tomatoes are fine")).toBe(false);
+    expect(isOptOutMessage("bas ek sawaal hai")).toBe(false);
+  });
+
+  it("detects resume keywords but not ordinary farming questions", () => {
+    expect(isResumeMessage("START")).toBe(true);
+    expect(isResumeMessage("start!")).toBe(true);
+    expect(isResumeMessage("resume please")).toBe(true);
+    expect(isResumeMessage("chalu karo")).toBe(true);
+    expect(isResumeMessage("start again")).toBe(true);
+    expect(isResumeMessage("when should I start planting rice?")).toBe(false);
+    expect(isResumeMessage("start planting rice")).toBe(false);
+    expect(isResumeMessage("how do I grow tomatoes")).toBe(false);
+    expect(isResumeMessage("")).toBe(false);
   });
 });
 

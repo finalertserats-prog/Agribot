@@ -14,6 +14,9 @@ vi.mock("../src/lib/database", () => ({
   updateUserProfile: vi.fn(),
   saveInteraction: vi.fn(),
   getRecentInteractions: vi.fn(() => []),
+  isOptedOut: vi.fn(() => false),
+  setOptOut: vi.fn(),
+  clearOptOut: vi.fn(),
 }));
 vi.mock("../src/lib/memory", () => ({
   storeMemory: vi.fn(async () => {}),
@@ -27,7 +30,7 @@ vi.mock("@whiskeysockets/baileys", () => ({
 
 import { handleMessage, backgroundTasks, resetForTests } from "../src/handler";
 import { generateTextResponse, analyzeImage, isFarmingTopic } from "../src/lib/gemini";
-import { saveInteraction } from "../src/lib/database";
+import { saveInteraction, isOptedOut, setOptOut, clearOptOut } from "../src/lib/database";
 
 function fakeSocket(): WASocket & { sendMessage: ReturnType<typeof vi.fn> } {
   return { sendMessage: vi.fn(async () => undefined) } as any;
@@ -55,6 +58,7 @@ beforeEach(() => {
   resetForTests();
   vi.clearAllMocks();
   (isFarmingTopic as any).mockResolvedValue(false);
+  (isOptedOut as any).mockReturnValue(false);
 });
 
 describe("handleMessage — DM text", () => {
@@ -113,6 +117,36 @@ describe("handleMessage — groups", () => {
     const promptText = (generateTextResponse as any).mock.calls[0][0] as string;
     expect(promptText).not.toContain("agrifriend");
     expect(promptText).toContain("grow tomatoes");
+  });
+});
+
+describe("handleMessage — opt-out / consent", () => {
+  it("opts a user out on STOP, confirms once, and never calls Gemini", async () => {
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("STOP"), false, "u1@s.whatsapp.net");
+    expect(setOptOut).toHaveBeenCalledWith("u1@s.whatsapp.net");
+    expect(generateTextResponse).not.toHaveBeenCalled();
+    const sent = (s.sendMessage as any).mock.calls[0][1].text as string;
+    expect(sent).toContain("unsubscribed");
+  });
+
+  it("stays completely silent for an already opted-out user", async () => {
+    (isOptedOut as any).mockReturnValue(true);
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("how do I grow tomatoes?"), false, "u1@s.whatsapp.net");
+    expect(s.sendMessage).not.toHaveBeenCalled();
+    expect(generateTextResponse).not.toHaveBeenCalled();
+    expect(setOptOut).not.toHaveBeenCalled();
+  });
+
+  it("re-subscribes an opted-out user on START and welcomes them back", async () => {
+    (isOptedOut as any).mockReturnValue(true);
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("START"), false, "u1@s.whatsapp.net");
+    expect(clearOptOut).toHaveBeenCalledWith("u1@s.whatsapp.net");
+    expect(generateTextResponse).not.toHaveBeenCalled();
+    const sent = (s.sendMessage as any).mock.calls[0][1].text as string;
+    expect(sent).toContain("Welcome back");
   });
 });
 

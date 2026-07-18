@@ -72,6 +72,16 @@ export async function initDB(): Promise<void> {
     );
   `);
 
+  // Durable opt-out ledger for the reactive path. A farmer who texts "STOP"
+  // must stop receiving replies — and that decision has to survive a restart,
+  // so it lives on disk, not in an in-memory Set that a crash would wipe.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS optouts (
+      userId TEXT PRIMARY KEY,
+      at TEXT NOT NULL
+    );
+  `);
+
   saver = createDebouncedSaver(async () => {
     const data = db.export();
     await atomicWrite(dbPath, data);
@@ -205,6 +215,36 @@ export function getUser(id: string): UserRecord | undefined {
     firstSeen: row[6] as string,
     lastSeen: row[7] as string,
   };
+}
+
+/**
+ * Record an inbound opt-out. Idempotent — re-opting-out just refreshes the
+ * timestamp. Flushed to disk synchronously (not via the debounced saver) before
+ * resolving, so we never confirm "you're unsubscribed" to a farmer and then lose
+ * that opt-out to a crash inside the debounce window. Losing a STOP is the one
+ * failure this feature exists to prevent.
+ */
+export async function setOptOut(
+  userId: string,
+  now: string = new Date().toISOString()
+): Promise<void> {
+  db.run("INSERT OR REPLACE INTO optouts (userId, at) VALUES (?, ?)", [userId, now]);
+  saveDB(); // schedule the write, then force it to disk now (don't wait for debounce)
+  await flushDB();
+}
+
+/** Re-subscribe a farmer who previously opted out. Also flushed immediately so
+ *  the welcome-back and the durable state can't disagree after a restart. */
+export async function clearOptOut(userId: string): Promise<void> {
+  db.run("DELETE FROM optouts WHERE userId = ?", [userId]);
+  saveDB();
+  await flushDB();
+}
+
+/** True if this farmer has an active opt-out on record. */
+export function isOptedOut(userId: string): boolean {
+  const result = db.exec("SELECT 1 FROM optouts WHERE userId = ?", [userId]);
+  return result.length > 0 && result[0].values.length > 0;
 }
 
 export function saveInteraction(
