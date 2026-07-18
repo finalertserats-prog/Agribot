@@ -257,8 +257,10 @@ export async function handleMessage(
   globalDayLimiter.allow("global", nowMs);
 
   // Domain guardrail — keyword fast-path (free), model fallback on a miss.
-  // Images bypass entirely so Gemini can analyze the photo.
-  if (!hasImage && text) {
+  // Images bypass entirely so Gemini can analyze the photo. A brand-new contact
+  // also bypasses so their first "hi"/"namaste" gets Agri-Dosth's warm greeting
+  // (which then collects name/place/phone) instead of a cold farming-only reply.
+  if (!hasImage && text && !isNewContact) {
     if (!isFarmingRelated(text) && !(await isFarmingTopic(text))) {
       // In groups the user explicitly triggered us, so a short reply is fine.
       await socket.sendMessage(remoteJid, { text: FARMING_ONLY_REPLY });

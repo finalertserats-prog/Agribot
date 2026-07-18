@@ -59,8 +59,13 @@ export async function webChat(input: WebChatInput): Promise<{ reply: string }> {
   globalMinute.allow("global", now);
   globalDay.allow("global", now);
 
-  // Farming-only guardrail (text). Images bypass so photos can be analyzed.
-  if (!hasImage && text) {
+  // A brand-new session gets Agri-Dosth's greeting (which collects name/place/
+  // phone) even if their first message isn't obviously farming.
+  const isNewContact = !getUser(sessionId);
+
+  // Farming-only guardrail (text). Images bypass so photos can be analyzed;
+  // new contacts bypass so their first message reaches the greeting.
+  if (!hasImage && text && !isNewContact) {
     if (!isFarmingRelated(text) && !(await isFarmingTopic(text))) {
       return { reply: FARMING_ONLY_REPLY };
     }
