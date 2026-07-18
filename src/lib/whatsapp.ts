@@ -17,6 +17,7 @@ import { logger } from "./logger";
 import { SeenCache } from "./seen";
 import { atomicWrite, createDebouncedSaver, type DebouncedSaver } from "./persist";
 import { bump } from "../ops/metrics";
+import { notify } from "../ops/notifier";
 
 export type MessageHandler = (
   socket: WASocket,
@@ -171,7 +172,16 @@ export async function connectWhatsApp(
         } catch (err) {
           logger.error({ err }, "Failed to clear auth dir after logout");
         }
-        process.exit(1);
+        // Alert the operator (logs always; POSTs to OPS_WEBHOOK_URL if set) that a
+        // human must re-scan the QR. Exit only after the alert attempt resolves so
+        // the webhook has a chance to fire before the process dies.
+        void notify({
+          level: "critical",
+          reason:
+            "WhatsApp logged the bot out — re-link needed. Run `pm2 logs agrifriend` and scan the fresh QR.",
+          at: new Date().toISOString(),
+        }).finally(() => process.exit(1));
+        return;
       }
     }
 

@@ -135,3 +135,21 @@ export function isOptOutMessage(text: string): boolean {
 export function isResumeMessage(text: string): boolean {
   return matchesCommand(text, START_KEYWORDS);
 }
+
+// Data-erasure keywords (DELETE / DPDP right-to-erasure). Whole-message match
+// so a normal question like "how do I delete weeds" never wipes a farmer's data.
+const DELETE_KEYWORDS = [
+  "delete",
+  "delete my data",
+  "delete data",
+  "erase",
+  "erase my data",
+  "data delete karo",
+  "mera data delete karo",
+  "mera data hatao",
+];
+
+/** Detect a data-erasure request. Whole-message match to avoid false wipes. */
+export function isDeleteMessage(text: string): boolean {
+  return matchesCommand(text, DELETE_KEYWORDS);
+}

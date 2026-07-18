@@ -84,6 +84,9 @@ describe("connectWhatsApp", () => {
     await connectWhatsApp(vi.fn());
     const before = (makeWASocket as any).mock.calls.length;
     shared.sockets.at(-1).ev.emit("connection.update", closeEvt(401));
+    // Exit now runs after the operator alert resolves (notify().finally(exit)),
+    // so flush microtasks before asserting.
+    await vi.advanceTimersByTimeAsync(0);
     expect(exitSpy).toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(70_000);
     expect((makeWASocket as any).mock.calls.length).toBe(before); // no reconnect

@@ -114,8 +114,13 @@ export function upsertUser(
     const plants = extra?.plants ?? (row[3] as string);
     const issues = extra?.issues ?? (row[4] as string);
     const location = extra?.location ?? (row[5] as string);
+    // Don't clobber a real, model-captured name with the WhatsApp pushName (or
+    // the "Farmer" fallback) on every message — keep the stored name unless we
+    // still only have a placeholder.
+    const currentName = row[1] as string;
+    const keptName = currentName && currentName !== "Farmer" ? currentName : name;
     db.run("UPDATE users SET name = ?, plants = ?, issues = ?, location = ?, lastSeen = ? WHERE id = ?", [
-      name, plants, issues, location, now, id,
+      keptName, plants, issues, location, now, id,
     ]);
   } else {
     db.run(
@@ -174,7 +179,7 @@ export function mergeFacts(existing: string, incoming: string | undefined): stri
  */
 export function updateUserProfile(
   id: string,
-  profile: Partial<Pick<UserRecord, "plants" | "issues" | "location">>
+  profile: Partial<Pick<UserRecord, "name" | "plants" | "issues" | "location">>
 ): void {
   const existing = getUser(id);
   if (!existing) return;
@@ -182,8 +187,12 @@ export function updateUserProfile(
   const plants = mergeFacts(existing.plants, profile.plants);
   const issues = mergeFacts(existing.issues, profile.issues);
   const location = sanitizeProfileField(profile.location) || existing.location;
+  // Name is single-valued; a freshly-stated name wins, but never overwrite a
+  // known name with an empty extraction.
+  const name = sanitizeProfileField(profile.name) || existing.name;
 
   if (
+    name === existing.name &&
     plants === existing.plants &&
     issues === existing.issues &&
     location === existing.location
@@ -191,13 +200,28 @@ export function updateUserProfile(
     return; // nothing changed — skip the write
   }
 
-  db.run("UPDATE users SET plants = ?, issues = ?, location = ? WHERE id = ?", [
+  db.run("UPDATE users SET name = ?, plants = ?, issues = ?, location = ? WHERE id = ?", [
+    name,
     plants,
     issues,
     location,
     id,
   ]);
   saveDB();
+}
+
+/**
+ * Erase everything we hold about a farmer (DELETE command / DPDP request):
+ * their profile row, all interactions, and any opt-out record. Vector memories
+ * are cleared separately via the memory module. Flushed immediately so the
+ * erasure is durable before we confirm it.
+ */
+export async function deleteUserData(userId: string): Promise<void> {
+  db.run("DELETE FROM users WHERE id = ?", [userId]);
+  db.run("DELETE FROM interactions WHERE userId = ?", [userId]);
+  db.run("DELETE FROM optouts WHERE userId = ?", [userId]);
+  saveDB();
+  await flushDB();
 }
 
 export function getUser(id: string): UserRecord | undefined {

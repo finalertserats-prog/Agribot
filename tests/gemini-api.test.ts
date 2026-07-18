@@ -74,6 +74,7 @@ describe("extractProfile", () => {
   it("returns an empty profile when the model returns no JSON", async () => {
     genContent.mockResolvedValue({ response: { text: () => "sorry, not sure" } });
     expect(await extractProfile("hello there friend")).toEqual({
+      name: "",
       plants: "",
       issues: "",
       location: "",
@@ -83,6 +84,7 @@ describe("extractProfile", () => {
   it("returns an empty profile (does not throw) on model error", async () => {
     genContent.mockRejectedValue(new Error("boom"));
     expect(await extractProfile("some long enough message")).toEqual({
+      name: "",
       plants: "",
       issues: "",
       location: "",

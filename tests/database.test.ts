@@ -13,6 +13,7 @@ import {
   setOptOut,
   clearOptOut,
   isOptedOut,
+  deleteUserData,
 } from "../src/lib/database";
 import { config } from "../src/config";
 
@@ -103,5 +104,22 @@ describe("database round-trip", () => {
     await setOptOut(jid);
     await initDB(); // simulate a process restart: reload from disk
     expect(isOptedOut(jid)).toBe(true);
+  });
+
+  it("stores a farmer's stated name via updateUserProfile", () => {
+    upsertUser("named@s.whatsapp.net", "Farmer", "g1");
+    updateUserProfile("named@s.whatsapp.net", { name: "Ramesh" });
+    expect(getUser("named@s.whatsapp.net")?.name).toBe("Ramesh");
+  });
+
+  it("deleteUserData erases the user, their interactions, and opt-out", async () => {
+    const jid = "wipe@s.whatsapp.net";
+    upsertUser(jid, "Sita", "g1");
+    saveInteraction(jid, "g1", "Sita", "hi", "hello", false);
+    await setOptOut(jid);
+    await deleteUserData(jid);
+    expect(getUser(jid)).toBeUndefined();
+    expect(getRecentInteractions(jid)).toEqual([]);
+    expect(isOptedOut(jid)).toBe(false);
   });
 });

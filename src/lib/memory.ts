@@ -62,6 +62,41 @@ export async function flushMemory(): Promise<void> {
   if (saver) await saver.flush();
 }
 
+/** Erase all vector memories for a farmer (part of the DELETE / erasure flow). */
+export async function deleteUserMemories(userId: string): Promise<void> {
+  // Active (in-memory) provider's store.
+  const before = entries.length;
+  entries = entries.filter((e) => e.userId !== userId);
+  if (entries.length !== before && saver) {
+    saver.schedule();
+    await saver.flush();
+  }
+
+  // Also purge any OTHER provider's on-disk vector store — stores are namespaced
+  // per provider, so erasure must be complete even if the bot ran under a
+  // different provider before. Best-effort; never throws out of an erasure.
+  try {
+    const dir = path.dirname(config.vectorPath);
+    const base = path.basename(config.vectorPath); // "vectors"
+    if (!fs.existsSync(dir)) return;
+    for (const file of fs.readdirSync(dir)) {
+      if (!file.startsWith(`${base}_`) || !file.endsWith("_entries.json")) continue;
+      const full = path.join(dir, file);
+      if (full === binPath) continue; // active store already handled above
+      try {
+        const raw = JSON.parse(fs.readFileSync(full, "utf-8"));
+        if (!Array.isArray(raw)) continue;
+        const kept = raw.filter((e: VectorEntry) => e && e.userId !== userId);
+        if (kept.length !== raw.length) await atomicWrite(full, JSON.stringify(kept));
+      } catch (err) {
+        logger.warn({ err, file }, "Failed to purge user from a sibling vector store");
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, "Failed to scan vector dir during erasure");
+  }
+}
+
 async function getEmbedding(text: string): Promise<number[]> {
   // Retry on transient 429s so a rate-limit blip doesn't silently drop a memory.
   // Provider-agnostic: whichever backend is configured supplies the vector.

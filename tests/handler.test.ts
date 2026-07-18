@@ -6,21 +6,35 @@ vi.mock("../src/lib/gemini", () => ({
   generateTextResponse: vi.fn(async () => "Here is some farming advice 🌱"),
   analyzeImage: vi.fn(async () => "Your plant looks healthy!"),
   isFarmingTopic: vi.fn(async () => false),
-  extractProfile: vi.fn(async () => ({ plants: "", issues: "", location: "" })),
+  extractProfile: vi.fn(async () => ({ name: "", plants: "", issues: "", location: "" })),
 }));
+const EXISTING_USER = {
+  id: "u1@s.whatsapp.net",
+  name: "Farmer",
+  groupId: "111@s.whatsapp.net",
+  plants: "",
+  issues: "",
+  location: "",
+  firstSeen: "",
+  lastSeen: "",
+};
 vi.mock("../src/lib/database", () => ({
   upsertUser: vi.fn(),
-  getUser: vi.fn(() => undefined),
+  // Default: a KNOWN contact, so the first-contact consent notice does NOT fire
+  // in the general tests. Consent tests override this to return undefined.
+  getUser: vi.fn(() => EXISTING_USER),
   updateUserProfile: vi.fn(),
   saveInteraction: vi.fn(),
   getRecentInteractions: vi.fn(() => []),
   isOptedOut: vi.fn(() => false),
   setOptOut: vi.fn(),
   clearOptOut: vi.fn(),
+  deleteUserData: vi.fn(async () => {}),
 }));
 vi.mock("../src/lib/memory", () => ({
   storeMemory: vi.fn(async () => {}),
   queryMemory: vi.fn(async () => []),
+  deleteUserMemories: vi.fn(async () => {}),
 }));
 vi.mock("@whiskeysockets/baileys", () => ({
   downloadContentFromMessage: vi.fn(async function* () {
@@ -30,7 +44,16 @@ vi.mock("@whiskeysockets/baileys", () => ({
 
 import { handleMessage, backgroundTasks, resetForTests } from "../src/handler";
 import { generateTextResponse, analyzeImage, isFarmingTopic } from "../src/lib/gemini";
-import { saveInteraction, isOptedOut, setOptOut, clearOptOut } from "../src/lib/database";
+import {
+  saveInteraction,
+  isOptedOut,
+  setOptOut,
+  clearOptOut,
+  getUser,
+  deleteUserData,
+} from "../src/lib/database";
+import { deleteUserMemories } from "../src/lib/memory";
+import { config } from "../src/config";
 
 function fakeSocket(): WASocket & { sendMessage: ReturnType<typeof vi.fn> } {
   return { sendMessage: vi.fn(async () => undefined) } as any;
@@ -59,6 +82,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   (isFarmingTopic as any).mockResolvedValue(false);
   (isOptedOut as any).mockReturnValue(false);
+  (getUser as any).mockReturnValue(EXISTING_USER); // known contact by default
 });
 
 describe("handleMessage — DM text", () => {
@@ -147,6 +171,40 @@ describe("handleMessage — opt-out / consent", () => {
     expect(generateTextResponse).not.toHaveBeenCalled();
     const sent = (s.sendMessage as any).mock.calls[0][1].text as string;
     expect(sent).toContain("Welcome back");
+  });
+
+  it("erases a user's data on DELETE and confirms, without calling Gemini", async () => {
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("DELETE"), false, "u1@s.whatsapp.net");
+    expect(deleteUserData).toHaveBeenCalledWith("u1@s.whatsapp.net");
+    expect(deleteUserMemories).toHaveBeenCalledWith("u1@s.whatsapp.net");
+    expect(generateTextResponse).not.toHaveBeenCalled();
+    const sent = (s.sendMessage as any).mock.calls[0][1].text as string;
+    expect(sent).toContain("erased");
+  });
+
+  it("honors DELETE even for an opted-out user", async () => {
+    (isOptedOut as any).mockReturnValue(true);
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("delete my data"), false, "u1@s.whatsapp.net");
+    expect(deleteUserData).toHaveBeenCalledWith("u1@s.whatsapp.net");
+  });
+
+  it("sends the one-time consent notice to a brand-new contact, then answers", async () => {
+    (getUser as any).mockReturnValue(undefined); // first contact
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("how do I grow tomatoes?"), false, "new@s.whatsapp.net");
+    const texts = (s.sendMessage as any).mock.calls.map((c: any) => c[1].text as string);
+    expect(texts.some((t: string) => t === config.consentMessage)).toBe(true);
+    expect(generateTextResponse).toHaveBeenCalledOnce(); // still answered
+  });
+
+  it("does NOT resend consent to a returning contact", async () => {
+    (getUser as any).mockReturnValue(EXISTING_USER);
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("how do I grow tomatoes?"), false, "u1@s.whatsapp.net");
+    const texts = (s.sendMessage as any).mock.calls.map((c: any) => c[1].text as string);
+    expect(texts.some((t: string) => t === config.consentMessage)).toBe(false);
   });
 });
 

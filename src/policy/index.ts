@@ -6,7 +6,7 @@ import { FileAuditSink } from "./audit";
 import { PolicyEngine } from "./engine";
 
 export * from "./types";
-export { ConsentStore, isOptOutMessage, isResumeMessage } from "./consent";
+export { ConsentStore, isOptOutMessage, isResumeMessage, isDeleteMessage } from "./consent";
 export { FrequencyGuard, isQuietHours } from "./frequency";
 export { IdempotencyStore, idempotencyKey, dayStampFor } from "./idempotency";
 export { MemoryAuditSink, FileAuditSink } from "./audit";

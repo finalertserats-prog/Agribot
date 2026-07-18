@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { riskOf, requiresApproval } from "../src/policy/risk";
 import { isApprovedTemplate, renderTemplate, sanitizeVar } from "../src/policy/templates";
-import { ConsentStore, isOptOutMessage, isResumeMessage } from "../src/policy/consent";
+import { ConsentStore, isOptOutMessage, isResumeMessage, isDeleteMessage } from "../src/policy/consent";
 import { FrequencyGuard, isQuietHours } from "../src/policy/frequency";
 import { IdempotencyStore, idempotencyKey, dayStampFor } from "../src/policy/idempotency";
 import { MemoryAuditSink } from "../src/policy/audit";
@@ -75,6 +75,16 @@ describe("consent", () => {
     expect(isResumeMessage("start planting rice")).toBe(false);
     expect(isResumeMessage("how do I grow tomatoes")).toBe(false);
     expect(isResumeMessage("")).toBe(false);
+  });
+
+  it("detects data-erasure commands but not normal questions", () => {
+    expect(isDeleteMessage("DELETE")).toBe(true);
+    expect(isDeleteMessage("delete my data")).toBe(true);
+    expect(isDeleteMessage("erase my data please")).toBe(true);
+    expect(isDeleteMessage("mera data delete karo")).toBe(true);
+    expect(isDeleteMessage("how do I delete weeds from my field")).toBe(false);
+    expect(isDeleteMessage("delete these pests")).toBe(false);
+    expect(isDeleteMessage("")).toBe(false);
   });
 });
 

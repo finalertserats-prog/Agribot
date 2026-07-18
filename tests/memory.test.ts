@@ -25,7 +25,7 @@ vi.mock("@google/generative-ai", () => ({
 
 import fs from "fs";
 import { config } from "../src/config";
-import { initMemory, storeMemory, queryMemory } from "../src/lib/memory";
+import { initMemory, storeMemory, queryMemory, deleteUserMemories } from "../src/lib/memory";
 
 beforeAll(() => {
   // Start from a clean vector store so accumulation is predictable.
@@ -64,5 +64,16 @@ describe("memory — queryMemory", () => {
     await storeMemory("m3 #c", "capU", "g1");
     const res = await queryMemory("#a", "capU", 2);
     expect(res.length).toBeLessThanOrEqual(2);
+  });
+
+  it("deleteUserMemories erases a user's memories but leaves others", async () => {
+    await storeMemory("del me #a", "delU", "g1");
+    await storeMemory("del me too #b", "delU", "g1");
+    await storeMemory("keep #a", "keepU", "g1");
+    await deleteUserMemories("delU");
+    expect(await queryMemory("#a", "delU")).toEqual([]);
+    // The other user's memories are untouched.
+    await storeMemory("keep more #b", "keepU", "g1");
+    expect((await queryMemory("#a", "keepU")).length).toBeGreaterThan(0);
   });
 });

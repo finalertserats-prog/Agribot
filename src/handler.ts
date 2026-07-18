@@ -11,9 +11,10 @@ import {
   isOptedOut,
   setOptOut,
   clearOptOut,
+  deleteUserData,
 } from "./lib/database";
-import { isOptOutMessage, isResumeMessage } from "./policy/consent";
-import { storeMemory, queryMemory } from "./lib/memory";
+import { isOptOutMessage, isResumeMessage, isDeleteMessage } from "./policy/consent";
+import { storeMemory, queryMemory, deleteUserMemories } from "./lib/memory";
 import {
   FARMING_ONLY_REPLY,
   isFarmingRelated,
@@ -33,6 +34,24 @@ setInterval(() => {
   globalMinuteLimiter.sweep();
   globalDayLimiter.sweep();
 }, 5 * 60_000).unref();
+
+// Farmers who just issued DELETE. A message that was already in-flight when the
+// erasure ran must not re-create their data afterwards (persistAndEnrich checks
+// this and skips). Entries auto-expire so the guard can't grow unbounded.
+const recentlyErased = new Map<string, number>();
+const ERASURE_GUARD_MS = 60_000;
+function markErased(jid: string): void {
+  recentlyErased.set(jid, Date.now() + ERASURE_GUARD_MS);
+}
+function wasRecentlyErased(jid: string): boolean {
+  const exp = recentlyErased.get(jid);
+  if (exp === undefined) return false;
+  if (Date.now() > exp) {
+    recentlyErased.delete(jid);
+    return false;
+  }
+  return true;
+}
 
 // Track fire-and-forget persistence so shutdown can await it before flushing.
 export const backgroundTasks = new Set<Promise<void>>();
@@ -89,6 +108,10 @@ async function persistAndEnrich(
   response: string,
   hasImage: boolean
 ): Promise<void> {
+  // If this farmer issued DELETE while this (older) message was still being
+  // processed, don't re-create the data we just erased.
+  if (wasRecentlyErased(senderJid)) return;
+
   try {
     saveInteraction(senderJid, remoteJid, pushName, text || "[image]", response, hasImage);
   } catch (err) {
@@ -106,7 +129,7 @@ async function persistAndEnrich(
   if (text && text.trim().length > 10) {
     try {
       const profile = await extractProfile(text);
-      if (profile.plants || profile.issues || profile.location) {
+      if (profile.name || profile.plants || profile.issues || profile.location) {
         updateUserProfile(senderJid, profile);
       }
     } catch (err) {
@@ -143,10 +166,28 @@ export async function handleMessage(
       .trim();
     if (!text && !hasImage) {
       await socket.sendMessage(remoteJid, {
-        text: `🌱 Hi ${pushName}! Ask me anything about farming, gardening, or plant health!`,
+        text: `🌱 Namaste ${pushName}! I'm Agri-Dosth, your farming friend. Ask me anything about your crops, soil, or plant health — I'm here to help!`,
       });
       return;
     }
+  }
+
+  // Whether this is the farmer's very first message (checked before any upsert)
+  // so we can send the one-time consent/onboarding notice to new contacts.
+  const isNewContact = !getUser(senderJid);
+
+  // Data erasure (DELETE) — honored before everything else, even for opted-out
+  // users, so a farmer can always exercise their right to be forgotten (DPDP).
+  if (text && isDeleteMessage(text)) {
+    // Guard first so any in-flight message for this farmer can't re-persist
+    // their data after we erase it.
+    markErased(senderJid);
+    await deleteUserData(senderJid);
+    await deleteUserMemories(senderJid);
+    await socket.sendMessage(remoteJid, {
+      text: `🗑️ Done, ${pushName}. I've erased everything I had about you. Message me anytime to start fresh — I'm always here to help. 🌱\n— Agri-Dosth`,
+    });
+    return;
   }
 
   // Consent / opt-out gate — honored before any AI spend and durable across
@@ -157,7 +198,7 @@ export async function handleMessage(
     if (text && isResumeMessage(text)) {
       await clearOptOut(senderJid);
       await socket.sendMessage(remoteJid, {
-        text: `🌱 Welcome back, ${pushName}! You're re-subscribed. Ask me anything about farming. Reply STOP anytime to unsubscribe.`,
+        text: `🌱 Welcome back, ${pushName}! Good to hear from you again. Ask me anything about your crops or farm. (Reply STOP anytime to unsubscribe.)\n— Agri-Dosth`,
       });
     }
     // Opted out and not resuming → stay silent; replying would defeat the opt-out.
@@ -169,9 +210,21 @@ export async function handleMessage(
     // farmer ("you won't receive further replies") is durable across a restart.
     await setOptOut(senderJid);
     await socket.sendMessage(remoteJid, {
-      text: `👋 You've been unsubscribed, ${pushName}. You won't receive further replies. Reply START anytime to resume.`,
+      text: `👋 You've been unsubscribed, ${pushName}. I won't message you further. Reply START anytime to come back — take care! 🌱\n— Agri-Dosth`,
     });
     return;
+  }
+
+  // First-contact consent/onboarding — sent BEFORE any AI spend (classifier,
+  // model) so a new farmer sees who they're talking to and how to control their
+  // data (STOP/DELETE) before we process their message. One-time (a returning
+  // contact already has a user row).
+  if (isNewContact) {
+    try {
+      await socket.sendMessage(remoteJid, { text: config.consentMessage });
+    } catch (err) {
+      logger.warn({ err }, "Failed to send consent notice (non-critical)");
+    }
   }
 
   // Rate limit the expensive AI path (per user) BEFORE any Gemini call —
@@ -238,6 +291,10 @@ export async function handleMessage(
   const user = getUser(senderJid);
   if (user) {
     const profile = [];
+    // Only treat a real name as known — the "Farmer" fallback means we still
+    // don't know it, so the model should ask (per the system prompt).
+    const knownName = user.name && user.name !== "Farmer" ? user.name : "";
+    if (knownName) profile.push(`Name: ${knownName}`);
     if (user.plants) profile.push(`Growing: ${user.plants}`);
     if (user.issues) profile.push(`Past issues: ${user.issues}`);
     if (user.location) profile.push(`Location: ${user.location}`);
@@ -286,4 +343,5 @@ export function resetForTests(): void {
   globalMinuteLimiter.reset();
   globalDayLimiter.reset();
   backgroundTasks.clear();
+  recentlyErased.clear();
 }
