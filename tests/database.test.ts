@@ -14,6 +14,7 @@ import {
   clearOptOut,
   isOptedOut,
   deleteUserData,
+  setUserProfile,
 } from "../src/lib/database";
 import { config } from "../src/config";
 
@@ -50,6 +51,9 @@ describe("mergeFacts", () => {
 // These tests exercise the real sql.js in-memory DB and its file persistence.
 describe("database round-trip", () => {
   beforeAll(async () => {
+    // Start from a clean file so a leftover DB from an interrupted prior run
+    // can't leak opt-outs/profiles into these tests (deterministic isolation).
+    if (fs.existsSync(config.dbPath)) fs.rmSync(config.dbPath);
     await initDB();
   });
 
@@ -130,5 +134,51 @@ describe("database round-trip", () => {
     expect(getUser(jid)).toBeUndefined();
     expect(getRecentInteractions(jid)).toEqual([]);
     expect(isOptedOut(jid)).toBe(false);
+  });
+});
+
+describe("setUserProfile — onboarding form (authoritative + durable)", () => {
+  it("creates a user and marks provided fields confirmed", async () => {
+    const rec = await setUserProfile("form1", "web", { name: "Ravi", location: "Guntur", phone: "9876500000" });
+    expect(rec.name).toBe("Ravi");
+    expect(rec.location).toBe("Guntur");
+    expect(rec.phone).toBe("9876500000");
+    expect(rec.confirmed.split(",").sort()).toEqual(["location", "name", "phone"]);
+  });
+
+  it("persists immediately — survives a reload with no explicit flush", async () => {
+    await setUserProfile("form2", "web", { name: "Meena", location: "Nashik" });
+    await initDB(); // simulate a crash+restart: reload straight from disk
+    const u = getUser("form2");
+    expect(u?.name).toBe("Meena");
+    expect(u?.location).toBe("Nashik");
+  });
+
+  it("only confirms fields that were actually provided", async () => {
+    const rec = await setUserProfile("form3", "web", { name: "Anil" });
+    expect(rec.confirmed).toBe("name");
+  });
+
+  it("an edit that blanks an optional field clears it (and unconfirms it)", async () => {
+    await setUserProfile("form4", "web", { name: "Kavya", location: "Mysuru", phone: "9800000000" });
+    // User edits and removes the phone.
+    const rec = await setUserProfile("form4", "web", { name: "Kavya", location: "Mysuru", phone: "" });
+    expect(rec.phone).toBe("");
+    expect(rec.confirmed.split(",").sort()).toEqual(["location", "name"]);
+  });
+});
+
+describe("updateUserProfile — respects confirmed fields", () => {
+  it("does NOT let extraction overwrite a form-confirmed name", async () => {
+    await setUserProfile("lock1", "web", { name: "Ravi" });
+    // A later casual message mentioning someone else must not rename the user.
+    updateUserProfile("lock1", { name: "Ramesh" });
+    expect(getUser("lock1")?.name).toBe("Ravi");
+  });
+
+  it("still fills an unconfirmed empty field from extraction", () => {
+    upsertUser("lock2", "Farmer", "web");
+    updateUserProfile("lock2", { location: "Hubli" });
+    expect(getUser("lock2")?.location).toBe("Hubli");
   });
 });

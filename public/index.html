@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Agri-Dosth 🌱 — Your Farming Friend</title>
   <style>
     :root { --green:#2e7d32; --green-d:#1b5e20; --bg:#f4f6f3; --bubble-bot:#ffffff; --bubble-me:#dcf8c6; --ink:#1a1a1a; --gold:#f2a30a; }
@@ -16,6 +16,7 @@
     .tools { margin-left:auto; display:flex; gap:7px; }
     .tool { background:rgba(255,255,255,.18); color:#fff; border:none; width:40px; height:40px; border-radius:11px; font-size:18px; cursor:pointer; }
     .tool:active { background:rgba(255,255,255,.34); }
+    .tool:focus-visible { outline:2px solid #fff; outline-offset:2px; }
     #consent { background:#fffde7; border-bottom:1px solid #eee; color:#5d4037; font-size:12px; padding:8px 16px; line-height:1.4; }
     #chat { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:4px; }
     .row { display:flex; flex-direction:column; max-width:82%; }
@@ -27,9 +28,22 @@
     .msg img { max-width:100%; border-radius:10px; margin-top:6px; display:block; }
     .time { font-size:10px; color:#9a9a8a; margin:2px 4px 6px; }
     .typing { align-self:flex-start; color:#777; font-size:14px; font-style:italic; padding:4px 8px; }
+    .linkish { color:var(--green-d); text-decoration:underline; cursor:pointer; font-size:13px; }
+    /* ---- Onboarding form card ---- */
+    .onboard { align-self:stretch; background:#fff; border:1px solid #e2e8de; border-radius:14px; padding:14px 15px; box-shadow:0 1px 2px rgba(0,0,0,.08); max-width:100%; }
+    .onboard h2 { margin:0 0 3px; font-size:16px; color:var(--green-d); }
+    .onboard p.sub { margin:0 0 12px; font-size:13px; color:#5f6b60; line-height:1.4; }
+    .onboard label { display:block; font-size:12px; font-weight:700; color:#455; margin:10px 0 4px; }
+    .onboard label .opt { font-weight:400; color:#8a978b; }
+    .onboard input { width:100%; border:1px solid #cfd8dc; border-radius:10px; padding:11px 12px; font-size:16px; font-family:inherit; }
+    .onboard input:focus { outline:none; border-color:var(--green); box-shadow:0 0 0 3px rgba(46,125,50,.15); }
+    .onboard .err { color:#c62828; font-size:12.5px; margin:8px 0 0; min-height:1em; }
+    .onboard button.go { margin-top:14px; width:100%; background:var(--green); color:#fff; border:none; border-radius:12px; padding:12px; font-size:16px; font-weight:700; cursor:pointer; }
+    .onboard button.go:active { background:var(--green-d); }
+    .onboard button.go:disabled { opacity:.6; }
     footer { padding:10px; background:#fff; border-top:1px solid #e6e6e6; }
     .inrow { display:flex; align-items:flex-end; gap:8px; }
-    #msg { flex:1; resize:none; border:1px solid #cfd8dc; border-radius:22px; padding:10px 14px; font-size:15px; max-height:120px; font-family:inherit; }
+    #msg { flex:1; resize:none; border:1px solid #cfd8dc; border-radius:22px; padding:10px 14px; font-size:16px; max-height:120px; font-family:inherit; }
     button.send, button.icon { border:none; border-radius:50%; width:44px; height:44px; font-size:20px; cursor:pointer; flex:0 0 auto; }
     button.send { background:var(--green); color:#fff; }
     button.send:active { background:var(--green-d); }
@@ -52,10 +66,11 @@
     <div class="tools">
       <button class="tool" id="saveBtn" title="Save this chat / चैट सेव करें">💾</button>
       <button class="tool" id="newBtn" title="Start a new chat / नई चैट">✏️</button>
+      <button class="tool" id="dataBtn" title="My details / delete my data">⚙️</button>
     </div>
   </header>
   <div id="consent">
-    🔒 Your messages &amp; photos are sent to an AI to help answer you. Ask in any language (हिंदी/English). This is an AI helper — for exact pesticide doses, confirm with your local KVK / agri-officer.
+    🔒 Your name, area &amp; messages are stored so Agri-Dosth remembers you and helps better. Ask in any language (हिंदी/English). This is an AI helper — for exact pesticide doses, confirm with your local KVK / agri-officer. Tap ⚙️ to edit or delete your details anytime.
   </div>
   <div id="chat"></div>
   <div id="preview"></div>
@@ -66,7 +81,7 @@
       <textarea id="msg" rows="1" placeholder="Ask about your crops…"></textarea>
       <button class="send" id="send" title="Send">➤</button>
     </div>
-    <div class="hint">💾 Save button keeps a copy of your advice to read again anytime</div>
+    <div class="hint">💾 Save keeps a copy of your advice · ⚙️ edit or delete your details</div>
   </footer>
   <div class="toast" id="toast"></div>
 
@@ -77,16 +92,17 @@
     const preview = document.getElementById('preview');
     const toastEl = document.getElementById('toast');
     const STORE = 'ad_history_v1';
-    const GREETING = "🌱 Namaste! I'm Agri-Dosth, your farming friend. 🚜\n\nBefore we begin, tell me a little about yourself so I can help you better:\n\n1️⃣ Your name\n2️⃣ Your village / area (where you farm)\n3️⃣ Your phone number\n\nनमस्ते! अपना नाम, गाँव/क्षेत्र और फ़ोन नंबर बताएँ — फिर मैं आपकी खेती में मदद करूँगा! 🌾";
 
     let pendingImage = null;   // data URL for the next send
     let farmerName = localStorage.getItem('ad_name') || '';
+    let onboarded = localStorage.getItem('ad_onboarded') === '1';
     let history = [];          // {w:'me'|'bot', t:text, imgData:dataURL|null, wasImage:bool, ts:number}
 
     let sessionId = localStorage.getItem('ad_session');
     if (!sessionId) { sessionId = 'web-' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('ad_session', sessionId); }
 
     function fmtTime(ts) { const d = new Date(ts); return d.toLocaleString([], { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }); }
+    function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(() => toastEl.classList.remove('show'), 2200); }
 
     function render(m) {
       const row = document.createElement('div'); row.className = 'row ' + m.w;
@@ -107,19 +123,100 @@
       history.push(m); render(m); persist();
     }
 
-    // Restore prior chat, or greet a first-time visitor.
-    (function boot() {
+    function greetBack(name) {
+      const row = document.createElement('div'); row.className = 'row bot';
+      const b = document.createElement('div'); b.className = 'msg';
+      b.appendChild(document.createTextNode('🌱 Welcome back, ' + name + '! Good to see you again. Ask me anything about your crops, soil or plants. 🚜'));
+      b.appendChild(document.createElement('br'));
+      const link = document.createElement('span'); link.className = 'linkish'; link.textContent = 'Not ' + name + '? Tap here';
+      link.onclick = () => {
+        // Shared device: start a FRESH identity so boot() can't reload the
+        // previous person's server-side profile. Rotate the session and wipe
+        // this device's local trace.
+        sessionId = 'web-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        localStorage.setItem('ad_session', sessionId);
+        ['ad_name','ad_onboarded','ad_loc','ad_phone',STORE].forEach(k => localStorage.removeItem(k));
+        farmerName=''; onboarded=false; history=[]; chat.innerHTML='';
+        showOnboarding(true);
+      };
+      b.appendChild(link);
+      row.appendChild(b);
+      const t = document.createElement('div'); t.className='time'; t.textContent=fmtTime(Date.now()); row.appendChild(t);
+      chat.appendChild(row); chat.scrollTop = chat.scrollHeight;
+    }
+
+    // ---- Onboarding form ----
+    function showOnboarding(force, prefill) {
+      // Don't duplicate an existing open form.
+      if (document.getElementById('ob') && !force) return;
+      const existing = document.getElementById('ob'); if (existing) existing.closest('.row').remove();
+      const row = document.createElement('div'); row.className = 'row bot'; row.style.maxWidth = '100%';
+      const card = document.createElement('div'); card.className = 'onboard'; card.id = 'ob';
+      card.innerHTML =
+        '<h2>🌱 Namaste! I\'m Agri-Dosth</h2>' +
+        '<p class="sub">Tell me a little about yourself so I can help better and remember you next time.<br>नमस्ते! अपनी जानकारी भरें ताकि मैं आपको बेहतर मदद कर सकूँ।</p>' +
+        '<label for="ob-name">Your name / आपका नाम</label>' +
+        '<input id="ob-name" type="text" autocomplete="name" placeholder="e.g. Ravi Kumar" maxlength="60" />' +
+        '<label for="ob-loc">Village / area <span class="opt">(optional)</span></label>' +
+        '<input id="ob-loc" type="text" autocomplete="address-level2" placeholder="e.g. Guntur, Andhra Pradesh" maxlength="80" />' +
+        '<label for="ob-phone">Phone <span class="opt">(optional)</span></label>' +
+        '<input id="ob-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="e.g. +91 98765 43210" maxlength="24" />' +
+        '<p class="err" id="ob-err"></p>' +
+        '<button class="go" id="ob-go">Start chatting 🌾</button>';
+      row.appendChild(card); chat.appendChild(row); chat.scrollTop = chat.scrollHeight;
+      // Prefill when editing so a user can change one field without wiping the
+      // others (the form is authoritative — a blank field clears that value).
+      if (prefill) {
+        document.getElementById('ob-name').value = prefill.name || '';
+        document.getElementById('ob-loc').value = prefill.location || '';
+        document.getElementById('ob-phone').value = prefill.phone || '';
+      }
+      document.getElementById('ob-name').focus();
+      document.getElementById('ob-go').onclick = submitOnboarding;
+    }
+
+    async function submitOnboarding() {
+      const name = document.getElementById('ob-name').value.trim();
+      const location = document.getElementById('ob-loc').value.trim();
+      const phone = document.getElementById('ob-phone').value.trim();
+      const err = document.getElementById('ob-err');
+      const go = document.getElementById('ob-go');
+      if (!name) { err.textContent = 'Please tell me your name so I can address you 🙂'; document.getElementById('ob-name').focus(); return; }
+      go.disabled = true; err.textContent = '';
+      try {
+        const res = await fetch('/api/profile', { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ sessionId, name, location: location || undefined, phone: phone || undefined }) });
+        const data = await res.json();
+        if (!res.ok) { err.textContent = data.error || 'Could not save — please try again.'; go.disabled = false; return; }
+        farmerName = data.name || name; onboarded = true;
+        localStorage.setItem('ad_name', farmerName); localStorage.setItem('ad_onboarded', '1');
+        localStorage.setItem('ad_loc', data.location || ''); localStorage.setItem('ad_phone', data.phone || '');
+        const obRow = document.getElementById('ob').closest('.row'); if (obRow) obRow.remove();
+        addMsg('bot', '🌱 Dhanyavaad, ' + farmerName + '! I\'m here to help with your crops, soil, pests and plant health — you can also send a photo of a sick plant. What\'s on your mind today?');
+      } catch (e) {
+        err.textContent = '🌱 Network issue — please try again.'; go.disabled = false;
+      }
+    }
+
+    // ---- Boot: restore chat, then decide onboarding vs welcome-back ----
+    (async function boot() {
       let saved = null;
       try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (e) {}
       if (Array.isArray(saved) && saved.length) {
         history = saved.map(m => ({ w:m.w, t:m.t, imgData:null, wasImage:!!m.wasImage, ts:m.ts || Date.now() }));
         history.forEach(render);
+      }
+      // Ask the server whether this session is already onboarded (authoritative).
+      let serverView = null;
+      try { const r = await fetch('/api/profile?sessionId=' + encodeURIComponent(sessionId)); if (r.ok) serverView = await r.json(); } catch (e) {}
+      if (serverView && serverView.onboarded) { onboarded = true; farmerName = serverView.name || farmerName; localStorage.setItem('ad_name', farmerName); localStorage.setItem('ad_onboarded','1'); }
+
+      if (onboarded && farmerName) {
+        if (!history.length) greetBack(farmerName);
       } else {
-        addMsg('bot', GREETING);
+        if (!history.length) showOnboarding(true);
+        else showOnboarding(false); // old chat, never onboarded → offer the form once
       }
     })();
-
-    function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(() => toastEl.classList.remove('show'), 2200); }
 
     // ---- Save chat as a clean, self-contained HTML file ----
     document.getElementById('saveBtn').onclick = () => {
@@ -158,7 +255,31 @@
     document.getElementById('newBtn').onclick = () => {
       if (!confirm('Start a new chat? Your current chat will be cleared (save it first if you want to keep it).')) return;
       history = []; localStorage.removeItem(STORE); chat.innerHTML = '';
-      addMsg('bot', GREETING);
+      if (onboarded && farmerName) greetBack(farmerName); else showOnboarding(true);
+    };
+
+    // ---- ⚙️ My details: edit or delete (DPDP parity) ----
+    document.getElementById('dataBtn').onclick = async () => {
+      const choice = prompt('Type "edit" to change your name/area/phone, or "delete" to erase all your data.', 'edit');
+      if (!choice) return;
+      const c = choice.trim().toLowerCase();
+      if (c === 'edit') {
+        // Prefill with the current details so editing one field doesn't wipe the rest.
+        showOnboarding(true, { name: localStorage.getItem('ad_name') || '', location: localStorage.getItem('ad_loc') || '', phone: localStorage.getItem('ad_phone') || '' });
+      } else if (c === 'delete') {
+        if (!confirm('Delete ALL your saved details and chat history? This cannot be undone.')) return;
+        // Only claim success if the server actually confirmed the erasure —
+        // never tell a farmer their data is gone when it might still be stored.
+        let ok = false;
+        try {
+          const r = await fetch('/api/profile', { method:'DELETE', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ sessionId }) });
+          ok = r.ok;
+        } catch (e) { ok = false; }
+        if (!ok) { toast('Could not erase right now — please try again'); return; }
+        ['ad_name','ad_onboarded','ad_loc','ad_phone',STORE].forEach(k => localStorage.removeItem(k));
+        toast('Your data has been erased 🌱');
+        setTimeout(() => location.reload(), 1200);
+      }
     };
 
     document.getElementById('camBtn').onclick = () => fileEl.click();

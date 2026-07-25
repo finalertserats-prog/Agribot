@@ -16,6 +16,9 @@ export interface UserRecord {
   firstSeen: string;
   lastSeen: string;
   phone: string;
+  /** Comma-list of fields the user set explicitly (e.g. via the onboarding
+   *  form). Opportunistic extraction must not overwrite these. */
+  confirmed: string;
 }
 
 export interface Interaction {
@@ -65,6 +68,14 @@ export async function initDB(): Promise<void> {
   // throws if the column is already present (fresh DBs), so ignore that.
   try {
     db.run("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT ''");
+  } catch {
+    /* column already exists — nothing to do */
+  }
+
+  // Migration: tracks which fields the user set explicitly (onboarding form),
+  // so opportunistic extraction can't overwrite user-confirmed identity data.
+  try {
+    db.run("ALTER TABLE users ADD COLUMN confirmedFields TEXT DEFAULT ''");
   } catch {
     /* column already exists — nothing to do */
   }
@@ -196,11 +207,17 @@ export function updateUserProfile(
 
   const plants = mergeFacts(existing.plants, profile.plants);
   const issues = mergeFacts(existing.issues, profile.issues);
-  const location = sanitizeProfileField(profile.location) || existing.location;
-  // Name and phone are single-valued; a freshly-stated value wins, but never
-  // overwrite a known value with an empty extraction.
-  const name = sanitizeProfileField(profile.name) || existing.name;
-  const phone = sanitizeProfileField(profile.phone) || existing.phone;
+  // A field the user set explicitly (onboarding form) is locked: opportunistic
+  // extraction from later chatter must never overwrite it — e.g. mentioning
+  // "my brother Ramesh" can't rename a user who told us they're "Ravi".
+  const locked = new Set(existing.confirmed.split(",").map((s) => s.trim()).filter(Boolean));
+  // Name, phone, location are single-valued; a freshly-stated value wins unless
+  // locked, but an empty extraction never erases a known value.
+  const name = locked.has("name") ? existing.name : sanitizeProfileField(profile.name) || existing.name;
+  const phone = locked.has("phone") ? existing.phone : sanitizeProfileField(profile.phone) || existing.phone;
+  const location = locked.has("location")
+    ? existing.location
+    : sanitizeProfileField(profile.location) || existing.location;
 
   if (
     name === existing.name &&
@@ -221,6 +238,56 @@ export function updateUserProfile(
     id,
   ]);
   saveDB();
+}
+
+/**
+ * Authoritatively set a user's identity fields from the onboarding form. Unlike
+ * updateUserProfile (opportunistic extraction), these values WIN and are marked
+ * "confirmed" so later extraction can't overwrite them. Creates the user row if
+ * needed. Flushed to disk immediately so a just-onboarded farmer is remembered
+ * even if the process crashes a moment later. Returns the stored record.
+ */
+export async function setUserProfile(
+  id: string,
+  groupId: string,
+  fields: { name: string; phone?: string; location?: string }
+): Promise<UserRecord> {
+  const now = new Date().toISOString();
+  const name = sanitizeProfileField(fields.name);
+  const phone = sanitizeProfileField(fields.phone);
+  const location = sanitizeProfileField(fields.location);
+
+  const existing = getUser(id);
+  // The form is authoritative and complete: the provided values win, and a
+  // blanked optional field is an intentional clear (so an edit can remove a
+  // phone/location). Name is required (validated upstream); fall back to an
+  // existing name only if somehow empty.
+  const finalName = name || existing?.name || "";
+  const finalPhone = phone; // "" clears
+  const finalLocation = location; // "" clears
+  // Recompute confirmed from what the user now has a value for, so clearing a
+  // field also unconfirms it (and re-opens it to opportunistic extraction).
+  const confirmedSet = new Set<string>();
+  if (finalName) confirmedSet.add("name");
+  if (finalPhone) confirmedSet.add("phone");
+  if (finalLocation) confirmedSet.add("location");
+  const confirmed = [...confirmedSet].join(",");
+
+  if (existing) {
+    db.run(
+      "UPDATE users SET name = ?, phone = ?, location = ?, confirmedFields = ?, lastSeen = ? WHERE id = ?",
+      [finalName, finalPhone, finalLocation, confirmed, now, id]
+    );
+  } else {
+    db.run(
+      "INSERT INTO users (id, name, groupId, plants, issues, location, firstSeen, lastSeen, phone, confirmedFields) VALUES (?, ?, ?, '', '', ?, ?, ?, ?, ?)",
+      [id, finalName, groupId, finalLocation, now, now, finalPhone, confirmed]
+    );
+  }
+
+  saveDB();
+  await flushDB(); // durable before we tell the farmer "got it"
+  return getUser(id)!;
 }
 
 /**
@@ -252,6 +319,7 @@ export function getUser(id: string): UserRecord | undefined {
     firstSeen: row[6] as string,
     lastSeen: row[7] as string,
     phone: (row[8] as string) ?? "",
+    confirmed: (row[9] as string) ?? "",
   };
 }
 
