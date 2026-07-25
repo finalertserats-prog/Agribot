@@ -9,11 +9,17 @@ export const DOMAIN_KEYWORDS = [
   "horticulture", "botany", "flower", "bloom", "weed", "mulch",
   "nitrogen", "phosphorus", "potassium", "npk", "ph", "manure",
   "vermicompost", "drip", "spray", "pruning", "grafting",
-  "agrifriend", "agri",
+  // Broader "farming as a way of life" scope: home/terrace/urban growing,
+  // methods, and where-to-get-things sourcing.
+  "kitchen", "nursery", "seedling", "sapling", "pot", "pots", "potting",
+  "container", "hydroponics", "aquaponics", "rooftop", "urban", "greenhouse",
+  "polyhouse", "sowing", "transplant", "pollination", "poultry", "dairy",
+  "livestock", "beekeeping", "mushroom", "orchard", "kvk", "mandi", "nursery",
+  "agrifriend", "agri", "dosth",
 ];
 
 export const FARMING_ONLY_REPLY =
-  "I'm focused on our farming community and plant health. Let's keep the discussion grounded in agriculture! 🌱";
+  "I'm here for all things growing — farming, terrace and home gardening, plants, soil and where to get what you need. Ask me anything about growing! 🌱";
 
 // Word-boundary match so short keywords like "ph"/"agri" don't false-match
 // inside unrelated words ("phone", "graph", "photo"). The keyword list already

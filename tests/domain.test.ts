@@ -31,6 +31,12 @@ describe("isFarmingRelated", () => {
     expect(isFarmingRelated("What time is the football match tonight?")).toBe(false);
   });
 
+  it("covers the broadened scope — terrace / home / kitchen gardening", () => {
+    expect(isFarmingRelated("How do I start a kitchen garden on my terrace?")).toBe(true);
+    expect(isFarmingRelated("Can I grow tomatoes with hydroponics on my rooftop?")).toBe(true);
+    expect(isFarmingRelated("Where can I buy saplings from a nursery?")).toBe(true);
+  });
+
   it("does not false-match short keywords inside unrelated words", () => {
     // "phone" contains "ph", "graph" contains no boundary — must not match.
     expect(isFarmingRelated("Can you call my phone about the graph?")).toBe(false);

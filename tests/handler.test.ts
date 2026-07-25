@@ -110,7 +110,7 @@ describe("handleMessage — DM text", () => {
     await handleMessage(s, textMsg("what is the football score tonight"), false, "u1@s.whatsapp.net");
     expect(generateTextResponse).not.toHaveBeenCalled();
     const sent = (s.sendMessage as any).mock.calls[0][1].text as string;
-    expect(sent).toContain("farming community");
+    expect(sent).toContain("growing");
   });
 
   it("classifier fallback allows a farming question with no keyword", async () => {

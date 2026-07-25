@@ -61,16 +61,15 @@
     <span class="logo">🌱</span>
     <div class="brand">
       <h1>Agri-Dosth</h1>
-      <p>Your AI farming friend · किसानों का दोस्त</p>
+      <p>Your friend for farming &amp; gardening — every way of growing 🌱</p>
     </div>
     <div class="tools">
-      <button class="tool" id="saveBtn" title="Save this chat / चैट सेव करें">💾</button>
-      <button class="tool" id="newBtn" title="Start a new chat / नई चैट">✏️</button>
-      <button class="tool" id="dataBtn" title="My details / delete my data">⚙️</button>
+      <button class="tool" id="saveBtn" title="Save this chat">💾</button>
+      <button class="tool" id="newBtn" title="Start a new chat">✏️</button>
     </div>
   </header>
   <div id="consent">
-    🔒 Your name, area &amp; messages are stored so Agri-Dosth remembers you and helps better. Ask in any language (हिंदी/English). This is an AI helper — for exact pesticide doses, confirm with your local KVK / agri-officer. Tap ⚙️ to edit or delete your details anytime.
+    🔒 Your name, location &amp; messages are saved so Agri-Dosth remembers you and helps better. Ask in any language. This is an AI helper — for exact pesticide/chemical doses, always confirm with your local KVK / agriculture officer.
   </div>
   <div id="chat"></div>
   <div id="preview"></div>
@@ -78,10 +77,10 @@
     <div class="inrow">
       <button class="icon" id="camBtn" title="Send a crop photo">📷</button>
       <input type="file" id="file" accept="image/*" capture="environment" hidden />
-      <textarea id="msg" rows="1" placeholder="Ask about your crops…"></textarea>
+      <textarea id="msg" rows="1" placeholder="Ask about farming, gardening, plants…"></textarea>
       <button class="send" id="send" title="Send">➤</button>
     </div>
-    <div class="hint">💾 Save keeps a copy of your advice · ⚙️ edit or delete your details</div>
+    <div class="hint">💾 Save keeps a copy of your advice to read again anytime</div>
   </footer>
   <div class="toast" id="toast"></div>
 
@@ -126,7 +125,7 @@
     function greetBack(name) {
       const row = document.createElement('div'); row.className = 'row bot';
       const b = document.createElement('div'); b.className = 'msg';
-      b.appendChild(document.createTextNode('🌱 Welcome back, ' + name + '! Good to see you again. Ask me anything about your crops, soil or plants. 🚜'));
+      b.appendChild(document.createTextNode('🌱 Welcome back, ' + name + '! Good to see you again. Ask me anything about farming or gardening — crops, soil, plants, or your terrace/home garden.'));
       b.appendChild(document.createElement('br'));
       const link = document.createElement('span'); link.className = 'linkish'; link.textContent = 'Not ' + name + '? Tap here';
       link.onclick = () => {
@@ -154,15 +153,15 @@
       const card = document.createElement('div'); card.className = 'onboard'; card.id = 'ob';
       card.innerHTML =
         '<h2>🌱 Namaste! I\'m Agri-Dosth</h2>' +
-        '<p class="sub">Tell me a little about yourself so I can help better and remember you next time.<br>नमस्ते! अपनी जानकारी भरें ताकि मैं आपको बेहतर मदद कर सकूँ।</p>' +
-        '<label for="ob-name">Your name / आपका नाम</label>' +
+        '<p class="sub">Your friend for farming and gardening — on farms, terraces, rooftops or kitchen gardens. Tell me a little about yourself so I can help better and remember you next time.</p>' +
+        '<label for="ob-name">Your name</label>' +
         '<input id="ob-name" type="text" autocomplete="name" placeholder="e.g. Ravi Kumar" maxlength="60" />' +
-        '<label for="ob-loc">Village / area <span class="opt">(optional)</span></label>' +
-        '<input id="ob-loc" type="text" autocomplete="address-level2" placeholder="e.g. Guntur, Andhra Pradesh" maxlength="80" />' +
+        '<label for="ob-loc">Your location <span class="opt">(optional)</span></label>' +
+        '<input id="ob-loc" type="text" autocomplete="address-level2" placeholder="e.g. Guntur, or your city / town" maxlength="80" />' +
         '<label for="ob-phone">Phone <span class="opt">(optional)</span></label>' +
         '<input id="ob-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="e.g. +91 98765 43210" maxlength="24" />' +
         '<p class="err" id="ob-err"></p>' +
-        '<button class="go" id="ob-go">Start chatting 🌾</button>';
+        '<button class="go" id="ob-go">Start growing 🌱</button>';
       row.appendChild(card); chat.appendChild(row); chat.scrollTop = chat.scrollHeight;
       // Prefill when editing so a user can change one field without wiping the
       // others (the form is authoritative — a blank field clears that value).
@@ -191,7 +190,7 @@
         localStorage.setItem('ad_name', farmerName); localStorage.setItem('ad_onboarded', '1');
         localStorage.setItem('ad_loc', data.location || ''); localStorage.setItem('ad_phone', data.phone || '');
         const obRow = document.getElementById('ob').closest('.row'); if (obRow) obRow.remove();
-        addMsg('bot', '🌱 Dhanyavaad, ' + farmerName + '! I\'m here to help with your crops, soil, pests and plant health — you can also send a photo of a sick plant. What\'s on your mind today?');
+        addMsg('bot', '🌱 Dhanyavaad, ' + farmerName + '! I\'m here for all kinds of growing — farms, terraces, rooftops and kitchen gardens: what to grow, how to grow it, and where to get what you need. You can also send a photo of a plant. What would you like to grow or fix today?');
       } catch (e) {
         err.textContent = '🌱 Network issue — please try again.'; go.disabled = false;
       }
@@ -256,30 +255,6 @@
       if (!confirm('Start a new chat? Your current chat will be cleared (save it first if you want to keep it).')) return;
       history = []; localStorage.removeItem(STORE); chat.innerHTML = '';
       if (onboarded && farmerName) greetBack(farmerName); else showOnboarding(true);
-    };
-
-    // ---- ⚙️ My details: edit or delete (DPDP parity) ----
-    document.getElementById('dataBtn').onclick = async () => {
-      const choice = prompt('Type "edit" to change your name/area/phone, or "delete" to erase all your data.', 'edit');
-      if (!choice) return;
-      const c = choice.trim().toLowerCase();
-      if (c === 'edit') {
-        // Prefill with the current details so editing one field doesn't wipe the rest.
-        showOnboarding(true, { name: localStorage.getItem('ad_name') || '', location: localStorage.getItem('ad_loc') || '', phone: localStorage.getItem('ad_phone') || '' });
-      } else if (c === 'delete') {
-        if (!confirm('Delete ALL your saved details and chat history? This cannot be undone.')) return;
-        // Only claim success if the server actually confirmed the erasure —
-        // never tell a farmer their data is gone when it might still be stored.
-        let ok = false;
-        try {
-          const r = await fetch('/api/profile', { method:'DELETE', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ sessionId }) });
-          ok = r.ok;
-        } catch (e) { ok = false; }
-        if (!ok) { toast('Could not erase right now — please try again'); return; }
-        ['ad_name','ad_onboarded','ad_loc','ad_phone',STORE].forEach(k => localStorage.removeItem(k));
-        toast('Your data has been erased 🌱');
-        setTimeout(() => location.reload(), 1200);
-      }
     };
 
     document.getElementById('camBtn').onclick = () => fileEl.click();
