@@ -1,6 +1,6 @@
 # Onboarding & "Remember Me" — Design & Roadmap
 
-How Agri-Dosth collects a farmer's details once, remembers them, and uses that
+How Agri-Dosth collects a grower's details once, remembers them, and uses that
 context for better answers — across the **web chat** (built) and **WhatsApp**
 (planned). This is the reference for the feature.
 

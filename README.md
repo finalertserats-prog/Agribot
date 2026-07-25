@@ -1,6 +1,7 @@
 # 🌱 AgriFriend Bot
 
-WhatsApp AI farming consultant for agricultural communities.
+AI farming & gardening companion — for field farmers, terrace/rooftop and home
+growers, and anyone learning to grow. On WhatsApp and the web.
 
 ## Features
 

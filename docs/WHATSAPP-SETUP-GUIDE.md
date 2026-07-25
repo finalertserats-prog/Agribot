@@ -27,7 +27,8 @@ steps on our VPS.
 
 ## 1. The big picture
 
-Agri-Dosth answers farmers' questions on WhatsApp. **WhatsApp has two completely
+Agri-Dosth answers growers' questions — field farmers and terrace/home gardeners
+alike — on WhatsApp. **WhatsApp has two completely
 different ways for a bot to connect, and one bot cannot do both jobs with one
 number.** This is the single most important thing to understand:
 
