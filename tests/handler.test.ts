@@ -122,6 +122,31 @@ describe("handleMessage — DM text", () => {
   });
 });
 
+describe("handleMessage — Baileys groups-only mode", () => {
+  it("ignores a 1:1 DM when baileysGroupsOnly is on (Cloud owns 1:1)", async () => {
+    (config as any).baileysGroupsOnly = true;
+    try {
+      const s = fakeSocket();
+      await handleMessage(s, textMsg("how do I grow tomatoes?"), false, "u1@s.whatsapp.net");
+      expect(s.sendMessage).not.toHaveBeenCalled();
+      expect(generateTextResponse).not.toHaveBeenCalled();
+    } finally {
+      (config as any).baileysGroupsOnly = false;
+    }
+  });
+
+  it("still serves groups when baileysGroupsOnly is on", async () => {
+    (config as any).baileysGroupsOnly = true;
+    try {
+      const s = fakeSocket();
+      await handleMessage(s, textMsg("agrifriend how do I grow tomatoes?"), true, "u1@s.whatsapp.net");
+      expect(generateTextResponse).toHaveBeenCalledOnce();
+    } finally {
+      (config as any).baileysGroupsOnly = false;
+    }
+  });
+});
+
 describe("handleMessage — groups", () => {
   it("stays silent in a group without the trigger word", async () => {
     const s = fakeSocket();

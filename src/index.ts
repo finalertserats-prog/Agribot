@@ -1,3 +1,4 @@
+import type http from "http";
 import { config } from "./config";
 import { logger } from "./lib/logger";
 import { connectWhatsApp, flushSeen } from "./lib/whatsapp";
@@ -6,8 +7,14 @@ import { initDB, flushDB } from "./lib/database";
 import { initMemory, flushMemory } from "./lib/memory";
 import { handleMessage, backgroundTasks } from "./handler";
 import { startHeartbeat, stopHeartbeat } from "./ops/heartbeat";
+import { startCloudWebhookServer } from "./web/cloudServer";
+import { WhatsAppCloudClient } from "./lib/whatsappCloud";
 
 void config; // ensure config (env validation) is evaluated at startup
+
+// The Cloud API webhook server (1:1 transport). Held so shutdown can close it.
+// Runs in THIS process alongside Baileys so there's a single DB writer.
+let cloudServer: http.Server | undefined;
 
 function registerShutdown(): void {
   let shuttingDown = false;
@@ -35,6 +42,7 @@ function registerShutdown(): void {
           "Drain timed out — some background writes may not have persisted"
         );
       }
+      if (cloudServer) await new Promise<void>((r) => cloudServer!.close(() => r()));
       await Promise.all([flushDB(), flushMemory(), flushSeen(), stopHeartbeat()]);
       process.exit(0);
     } catch (err) {
@@ -75,7 +83,21 @@ async function main(): Promise<void> {
 
   registerShutdown();
 
+  // Baileys — handles DMs AND groups (groups stay on Baileys; the Cloud API
+  // can't serve real community groups).
   await connectWhatsApp(handleMessage);
+
+  // Official WhatsApp Cloud API — 1:1 transport, started only when configured.
+  // Shares this process (and DB) with Baileys.
+  if (config.cloud) {
+    const messenger = new WhatsAppCloudClient(config.cloud, { maxImageBytes: config.maxImageBytes });
+    const port = Number(process.env.WHATSAPP_WEBHOOK_PORT || 8080);
+    const started = await startCloudWebhookServer(config.cloud, messenger, port);
+    cloudServer = started.server;
+    logger.info({ port: started.port }, "WhatsApp Cloud API transport active (1:1)");
+  } else {
+    logger.info("WhatsApp Cloud API not configured — running Baileys-only");
+  }
 }
 
 main().catch((err) => {

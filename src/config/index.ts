@@ -71,6 +71,18 @@ const envSchema = z
   OPS_WEBHOOK_URL: z.string().url().optional(),
   // Policy Engine kill switch (optional; "false" disables proactive outbound).
   PROACTIVE_ENABLED: z.enum(["true", "false"]).optional(),
+  // WhatsApp Business Cloud API (optional — official 1:1 transport). Cloud is
+  // ENABLED only when all four are set; otherwise the bot runs Baileys-only.
+  // Groups always stay on Baileys (the Cloud API can't serve real groups).
+  WHATSAPP_CLOUD_TOKEN: z.preprocess(blankToUndef, z.string().min(1).optional()),
+  WHATSAPP_PHONE_NUMBER_ID: z.preprocess(blankToUndef, z.string().min(1).optional()),
+  WHATSAPP_VERIFY_TOKEN: z.preprocess(blankToUndef, z.string().min(1).optional()),
+  WHATSAPP_APP_SECRET: z.preprocess(blankToUndef, z.string().min(1).optional()),
+  WHATSAPP_GRAPH_VERSION: z.preprocess(blankToUndef, z.string().min(1).default("v22.0")),
+  // When "true", Baileys ignores 1:1 DMs and serves ONLY groups — use this once
+  // 1:1 has moved to the Cloud API number, to enforce a clean split. Default
+  // (unset/false) keeps Baileys handling its own DMs too (no behavior change).
+  BAILEYS_GROUPS_ONLY: z.preprocess(blankToUndef, z.enum(["true", "false"]).optional()),
   })
   .refine((e) => resolveProviderName(e) !== null, {
     message:
@@ -90,6 +102,42 @@ export function resolveProviderName(
   if (e.GEMINI_API_KEY) return "gemini";
   if (e.OPENAI_API_KEY) return "openai";
   return null;
+}
+
+/** Resolved WhatsApp Business Cloud API settings (all fields required to enable). */
+export interface CloudConfig {
+  accessToken: string;
+  phoneNumberId: string;
+  verifyToken: string;
+  appSecret: string;
+  graphVersion: string;
+}
+
+// Cloud transport is enabled ONLY when all four credentials are present:
+// access token + phone-number-id (to send), verify token + app secret (to
+// receive & authenticate webhooks). Any missing piece → null → Baileys-only.
+export function resolveCloudConfig(e: {
+  WHATSAPP_CLOUD_TOKEN?: string;
+  WHATSAPP_PHONE_NUMBER_ID?: string;
+  WHATSAPP_VERIFY_TOKEN?: string;
+  WHATSAPP_APP_SECRET?: string;
+  WHATSAPP_GRAPH_VERSION?: string;
+}): CloudConfig | null {
+  if (
+    !e.WHATSAPP_CLOUD_TOKEN ||
+    !e.WHATSAPP_PHONE_NUMBER_ID ||
+    !e.WHATSAPP_VERIFY_TOKEN ||
+    !e.WHATSAPP_APP_SECRET
+  ) {
+    return null;
+  }
+  return {
+    accessToken: e.WHATSAPP_CLOUD_TOKEN,
+    phoneNumberId: e.WHATSAPP_PHONE_NUMBER_ID,
+    verifyToken: e.WHATSAPP_VERIFY_TOKEN,
+    appSecret: e.WHATSAPP_APP_SECRET,
+    graphVersion: e.WHATSAPP_GRAPH_VERSION || "v22.0",
+  };
 }
 
 function loadEnv(): z.infer<typeof envSchema> {
@@ -128,6 +176,10 @@ export const config = {
   },
   botTrigger: env.BOT_TRIGGER,
   logLevel: env.LOG_LEVEL,
+  // Official WhatsApp Cloud API transport (1:1 only). null => Baileys-only.
+  cloud: resolveCloudConfig(env),
+  // When true, Baileys serves ONLY groups (1:1 handled by the Cloud API).
+  baileysGroupsOnly: env.BAILEYS_GROUPS_ONLY === "true",
   authDir: "./auth_info",
   dataDir: env.DATA_DIR,
   dbPath: `${env.DATA_DIR}/agrifriend.db`,
