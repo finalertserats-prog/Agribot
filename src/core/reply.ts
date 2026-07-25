@@ -224,7 +224,21 @@ export async function processMessage(msg: IncomingMessage, res: Responder): Prom
   // Images bypass entirely so Gemini can analyze the photo. A brand-new contact
   // also bypasses so their first "hi"/"namaste" gets Agri-Dosth's warm greeting
   // (which then collects name/place/phone) instead of a cold farming-only reply.
-  if (!hasImage && text && !isNewContact) {
+  // Recent history — fetched once; drives BOTH the guardrail and the context.
+  // "Mid-conversation" means a prior turn within the last hour — not just "ever
+  // chatted". Beyond the window the guardrail re-applies (a genuine farming
+  // question still passes; only stale off-topic gets the canned redirect).
+  const recent = getRecentInteractions(userId, 3);
+  const CONVERSATION_WINDOW_MS = 60 * 60_000;
+  const lastTs = recent.length ? Date.parse(recent[0].timestamp) : NaN;
+  const inConversation = Date.now() - lastTs < CONVERSATION_WINDOW_MS;
+
+  // Domain guardrail — hard-gate only COLD messages (no prior history). Once a
+  // farmer is mid-conversation, let the AI handle follow-ups naturally ("yes",
+  // "ok", "tell me more") and gently redirect any true off-topic itself (per the
+  // system prompt). Judging a follow-up in isolation wrongly rejected legitimate
+  // replies like "Yes please" to the bot's own offer.
+  if (!hasImage && text && !isNewContact && !inConversation) {
     if (!isFarmingRelated(text) && !(await isFarmingTopic(text))) {
       await res.send(FARMING_ONLY_REPLY);
       return;
@@ -236,7 +250,6 @@ export async function processMessage(msg: IncomingMessage, res: Responder): Prom
   // Assemble context: recent history + vector memory + profile.
   const contextParts: string[] = [];
 
-  const recent = getRecentInteractions(userId, 3);
   if (recent.length > 0) {
     const history = recent
       .map((r) => `User said: "${r.message}" | You replied: "${r.response}"`)

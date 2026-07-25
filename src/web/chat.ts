@@ -63,9 +63,20 @@ export async function webChat(input: WebChatInput): Promise<{ reply: string }> {
   // phone) even if their first message isn't obviously farming.
   const isNewContact = !getUser(sessionId);
 
-  // Farming-only guardrail (text). Images bypass so photos can be analyzed;
-  // new contacts bypass so their first message reaches the greeting.
-  if (!hasImage && text && !isNewContact) {
+  // Recent history — fetched once; drives BOTH the guardrail and the context.
+  // "Mid-conversation" = a prior turn within the last hour (not just "ever
+  // chatted"); beyond that the guardrail re-applies. Mirrors the WhatsApp core.
+  const recent = getRecentInteractions(sessionId, 3);
+  const CONVERSATION_WINDOW_MS = 60 * 60_000;
+  const lastTs = recent.length ? Date.parse(recent[0].timestamp) : NaN;
+  const inConversation = Date.now() - lastTs < CONVERSATION_WINDOW_MS;
+
+  // Farming-only guardrail (text). Hard-gate only COLD messages (no history);
+  // images bypass (photos get analyzed) and new contacts bypass (first message
+  // reaches the greeting). Mid-conversation, let the AI handle follow-ups
+  // ("yes", "ok") naturally and redirect true off-topic itself — matches the
+  // WhatsApp core so a "Yes please" is never wrongly rejected.
+  if (!hasImage && text && !isNewContact && !inConversation) {
     if (!isFarmingRelated(text) && !(await isFarmingTopic(text))) {
       return { reply: FARMING_ONLY_REPLY };
     }
@@ -76,7 +87,6 @@ export async function webChat(input: WebChatInput): Promise<{ reply: string }> {
   // Assemble context — recent history + vector memory + profile (mirrors the
   // WhatsApp handler so replies are just as personalized).
   const parts: string[] = [];
-  const recent = getRecentInteractions(sessionId, 3);
   if (recent.length > 0) {
     parts.push(
       "Recent conversation history:\n" +

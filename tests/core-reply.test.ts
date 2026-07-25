@@ -35,8 +35,8 @@ vi.mock("../src/lib/memory", () => ({
 }));
 
 import { processMessage, backgroundTasks, resetForTests, type IncomingMessage } from "../src/core/reply";
-import { generateTextResponse } from "../src/lib/gemini";
-import { setOptOut, deleteUserData, getUser, isOptedOut } from "../src/lib/database";
+import { generateTextResponse, isFarmingTopic } from "../src/lib/gemini";
+import { setOptOut, deleteUserData, getUser, isOptedOut, getRecentInteractions } from "../src/lib/database";
 import { deleteUserMemories } from "../src/lib/memory";
 
 function incoming(text: string, over: Partial<IncomingMessage> = {}): IncomingMessage {
@@ -63,6 +63,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   (isOptedOut as any).mockReturnValue(false);
   (getUser as any).mockReturnValue(EXISTING_USER);
+  (getRecentInteractions as any).mockReturnValue([]); // cold by default
+  (isFarmingTopic as any).mockResolvedValue(false);
 });
 
 describe("processMessage — transport-agnostic core", () => {
@@ -71,6 +73,37 @@ describe("processMessage — transport-agnostic core", () => {
     await processMessage(incoming("how do I grow tomatoes?"), responder);
     expect(generateTextResponse).toHaveBeenCalledOnce();
     expect(sent).toContain("Here is some farming advice 🌱");
+  });
+
+  it("lets a mid-conversation follow-up ('Yes please') through — no off-topic redirect", async () => {
+    // Ongoing conversation: a prior interaction within the last hour.
+    (getRecentInteractions as any).mockReturnValue([
+      { message: "grow tomatoes", response: "here are steps", timestamp: new Date().toISOString() },
+    ]);
+    const { sent, responder } = capture();
+    await processMessage(incoming("Yes please"), responder);
+    expect(isFarmingTopic).not.toHaveBeenCalled(); // guardrail skipped mid-conversation
+    expect(generateTextResponse).toHaveBeenCalledOnce();
+    expect(sent).toContain("Here is some farming advice 🌱"); // answered, not the canned redirect
+  });
+
+  it("still redirects a COLD off-topic message (no prior history)", async () => {
+    (getRecentInteractions as any).mockReturnValue([]);
+    const { sent, responder } = capture();
+    await processMessage(incoming("what is the football score tonight"), responder);
+    expect(generateTextResponse).not.toHaveBeenCalled();
+    expect(sent.join(" ")).toContain("growing"); // FARMING_ONLY_REPLY
+  });
+
+  it("re-applies the guardrail for STALE history (last turn > 1h ago)", async () => {
+    // Old interaction (2h ago) — not an active conversation, so off-topic redirects.
+    (getRecentInteractions as any).mockReturnValue([
+      { message: "grow tomatoes", response: "steps", timestamp: new Date(Date.now() - 2 * 60 * 60_000).toISOString() },
+    ]);
+    const { sent, responder } = capture();
+    await processMessage(incoming("what is the football score tonight"), responder);
+    expect(generateTextResponse).not.toHaveBeenCalled();
+    expect(sent.join(" ")).toContain("growing");
   });
 
   it("opts a user out on STOP without calling Gemini", async () => {
