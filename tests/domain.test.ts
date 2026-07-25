@@ -32,9 +32,15 @@ describe("isFarmingRelated", () => {
   });
 
   it("covers the broadened scope — terrace / home / kitchen gardening", () => {
-    expect(isFarmingRelated("How do I start a kitchen garden on my terrace?")).toBe(true);
+    expect(isFarmingRelated("How do I start a kitchen garden on my terrace?")).toBe(true); // via "garden"
     expect(isFarmingRelated("Can I grow tomatoes with hydroponics on my rooftop?")).toBe(true);
     expect(isFarmingRelated("Where can I buy saplings from a nursery?")).toBe(true);
+  });
+
+  it("does not false-match generic non-farming uses of trimmed words", () => {
+    expect(isFarmingRelated("I need to buy a pot for cooking")).toBe(false);
+    expect(isFarmingRelated("kitchen cleaning tips please")).toBe(false);
+    expect(isFarmingRelated("urban development policy")).toBe(false);
   });
 
   it("does not false-match short keywords inside unrelated words", () => {

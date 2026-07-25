@@ -10,11 +10,13 @@ export const DOMAIN_KEYWORDS = [
   "nitrogen", "phosphorus", "potassium", "npk", "ph", "manure",
   "vermicompost", "drip", "spray", "pruning", "grafting",
   // Broader "farming as a way of life" scope: home/terrace/urban growing,
-  // methods, and where-to-get-things sourcing.
-  "kitchen", "nursery", "seedling", "sapling", "pot", "pots", "potting",
-  "container", "hydroponics", "aquaponics", "rooftop", "urban", "greenhouse",
-  "polyhouse", "sowing", "transplant", "pollination", "poultry", "dairy",
-  "livestock", "beekeeping", "mushroom", "orchard", "kvk", "mandi", "nursery",
+  // methods, and where-to-get-things sourcing. Deliberately excludes bare
+  // generic words (pot, kitchen, urban, container) whose real use cases already
+  // match via plant/garden/farming — including them would false-match
+  // "buy a pot", "kitchen cleaning", "urban development".
+  "nursery", "seedling", "sapling", "potting", "hydroponics", "aquaponics",
+  "rooftop", "greenhouse", "polyhouse", "sowing", "transplant", "pollination",
+  "poultry", "beekeeping", "mushroom", "orchard", "kvk", "mandi",
   "agrifriend", "agri", "dosth",
 ];
 
