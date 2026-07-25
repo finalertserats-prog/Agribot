@@ -5,9 +5,11 @@ the official Cloud API path for 1:1 chats, the Baileys path for group chats,
 how to set up the Meta Business account, every link, and the exact deployment
 steps on our VPS.
 
-> **Status at time of writing (2026-07-25):** Code built, reviewed, deployed to
-> the VPS, and the HTTPS webhook endpoint is live. What remains is *your* Meta
-> Business setup (tokens) + one config step. See **§9 Current Status** at the end.
+> **Status (2026-07-25): 🟢 WhatsApp 1:1 is LIVE.** The Meta app is set up, a
+> permanent token is on the server, the webhook is verified & subscribed, and a
+> real test message was answered end-to-end. Open now to the ≤5 verified test
+> recipients; going open-to-anyone needs a production number + business
+> verification. See **§9 Current Status** for full details.
 
 ---
 
@@ -354,22 +356,30 @@ stable." The honest, evidence-based picture:
 
 ## 9. Current status & remaining checklist
 
+### 🟢 LIVE — WhatsApp 1:1 is working (as of 2026-07-25)
+A real message was answered end-to-end on the test number: a verified tester's
+"Hi" → *"Hello Vishnu! 🌱 …"* (greeting by name, onboarding). Live details:
+- **App:** Agri-Dosth (ID `2104345650468151`) · **WABA ID** `1763036808044853`
+- **Test number:** +1 (555) 152-5698 · **Phone Number ID** `1134679136406565`
+- **Permanent, never-expiring token** (System User `agridosth-bot`) in the VPS `.env`
+- **Webhook** verified + subscribed to `messages` + **WABA subscribed to the app**
+- **2 verified test recipients** (test-number cap = 5)
+
 ### ✅ Done
 - [x] Cloud API adapter built (webhook + signature check + Graph API client + shared reply core)
-- [x] Codex-reviewed; 220 tests passing; ~86% coverage
+- [x] Codex-reviewed; tests passing; ~86% coverage
 - [x] Pushed to `finalertserats-prog/Agribot` (branch `hardening/p0-p1`)
-- [x] Deployed & built on the VPS
-- [x] Web chat restarted on new build (no regression)
-- [x] **HTTPS webhook endpoint live** — `https://agridosth.187-127-166-193.sslip.io/webhook/whatsapp` (cert auto-renews)
+- [x] Deployed & built on the VPS; web chat live (no regression)
+- [x] HTTPS webhook endpoint live (cert auto-renews)
+- [x] Meta app + WhatsApp Business Platform created; business portfolio "Agri Dosth"
+- [x] Credentials on the VPS `.env`; **permanent token** generated & validated
+- [x] Webhook verified, subscribed to `messages`, **WABA subscribed to app** (`subscribed_apps`)
+- [x] **1:1 proven end-to-end** on the test number ✅
 
-### ⏳ Remaining — to run 1:1 on the official number
-- [ ] Create/verify Meta Business account (§4.1) — *business verification for real farmers*
-- [ ] Create app + add WhatsApp; get creds ①②③ and pick ④ (§4.3)
-- [ ] Put the 4 vars in the VPS `.env` (§4.5)
-- [ ] `pm2 restart agrifriend` (§4.6)
-- [ ] Meta webhook: Verify & Save + subscribe `messages` (§4.7)
-- [ ] Add ≤5 test recipients and test (§4.8)
-- [ ] *(Later, for real farmers)* real dedicated number + permanent token (§4.9)
+### ⏳ Remaining — to reach real farmers (open to anyone)
+- [ ] A **real dedicated number** (registering it to the Cloud API removes it from the WhatsApp app — irreversible)
+- [ ] **Business verification** (GST/MSME/utility docs) — lifts the 5-recipient cap; Meta approval takes days
+- [ ] Register the number to the WABA (Step 2), then it's open to any farmer (no per-user OTP)
 
 ### ⏳ Remaining — to run in group chats
 - [ ] Get a **real spare WhatsApp number** (SIM) — the 555 test number can't do this (§2)
@@ -387,6 +397,7 @@ stable." The honest, evidence-based picture:
 | Meta **"Verify and Save" fails** | Bot not running, or `WHATSAPP_VERIFY_TOKEN` in `.env` ≠ the token typed in Meta. They must match exactly; restart after editing `.env`. |
 | Bot doesn't reply to a **real farmer** on the test number | Test number only messages the **5 verified recipients**. Add them, or move to a production number. |
 | Cloud transport not activating | All **four** `WHATSAPP_CLOUD_*` vars must be set. Check `pm2 logs agrifriend` for "running Baileys-only". |
+| Webhook verified but **inbound messages never arrive** (no POST in nginx) | The WABA isn't subscribed to the app. Fix: `POST /{WABA_ID}/subscribed_apps` with the token — the app-level "messages" field subscription alone is **not** enough. This was the missing step at go-live. |
 | Access token stopped working after a day | Temporary token expired (24h). Switch to a **permanent System User token** (§4.3). |
 | Baileys keeps showing a **QR / won't stay linked** | The spare number's WhatsApp got unlinked, or `auth_info/` was cleared. Re-scan (§5.2). |
 | Signature check rejects Meta's POSTs (403) | `WHATSAPP_APP_SECRET` is wrong/missing. Copy it again from App Settings → Basic. |
