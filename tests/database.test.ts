@@ -68,6 +68,32 @@ describe("database round-trip", () => {
     expect(user?.name).toBe("Alice");
   });
 
+  it("assigns a member ID: PREFIX-last4-seq, keyed to the phone", () => {
+    upsertUser("919951387202@s.whatsapp.net", "Padma", "group1", undefined, "CTG");
+    const user = getUser("919951387202@s.whatsapp.net");
+    expect(user?.ctgId).toMatch(/^CTG-7202-\d{3}$/);
+  });
+
+  it("keeps the same member ID stable across later messages", () => {
+    upsertUser("918887776665@s.whatsapp.net", "Ravi", "group1", undefined, "CTG");
+    const first = getUser("918887776665@s.whatsapp.net")?.ctgId;
+    upsertUser("918887776665@s.whatsapp.net", "Ravi", "group1", undefined, "CTG");
+    expect(getUser("918887776665@s.whatsapp.net")?.ctgId).toBe(first);
+  });
+
+  it("uses the persona's prefix for the member ID", () => {
+    upsertUser("917776665554@s.whatsapp.net", "Meena", "group1", undefined, "ROSE");
+    expect(getUser("917776665554@s.whatsapp.net")?.ctgId).toMatch(/^ROSE-5554-\d{3}$/);
+  });
+
+  it("gives distinct members distinct sequence numbers", () => {
+    upsertUser("911112223330@s.whatsapp.net", "A", "group1", undefined, "CTG");
+    upsertUser("911112223331@s.whatsapp.net", "B", "group1", undefined, "CTG");
+    const a = getUser("911112223330@s.whatsapp.net")?.ctgId;
+    const b = getUser("911112223331@s.whatsapp.net")?.ctgId;
+    expect(a).not.toBe(b);
+  });
+
   it("accumulates facts in the same field instead of overwriting", () => {
     upsertUser("u2@s.whatsapp.net", "Bob", "group1");
     updateUserProfile("u2@s.whatsapp.net", { plants: "tomatoes, okra" });

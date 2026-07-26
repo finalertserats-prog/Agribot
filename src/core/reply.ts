@@ -14,7 +14,7 @@ import {
 } from "../lib/database";
 import { isOptOutMessage, isResumeMessage, isDeleteMessage } from "../policy/consent";
 import { storeMemory, queryMemory, deleteUserMemories } from "../lib/memory";
-import { isFarmingRelated, FARMING_ONLY_REPLY } from "../lib/domain";
+import { getDefaultPersona, isInPersonaScope, type Persona } from "../config/personas";
 import { RateLimiter } from "../lib/rateLimiter";
 import { bump } from "../ops/metrics";
 
@@ -35,6 +35,9 @@ export interface IncomingMessage {
   hasImage: boolean;
   /** Lazily fetch the image bytes — only called when we're about to analyze it. */
   loadImage: () => Promise<{ bytes: Uint8Array; mimeType: string } | null>;
+  /** Which persona should answer, resolved by the transport from the group /
+   *  number this message arrived on. Defaults to the default persona. */
+  persona?: Persona;
 }
 
 /** How the core sends a reply back — the transport binds this to its channel. */
@@ -112,7 +115,7 @@ async function persistAndEnrich(
   }
 
   try {
-    const memText = `User ${pushName}: ${text || "[shared a plant image]"} | AgriFriend: ${response}`;
+    const memText = `User ${pushName}: ${text || "[shared a plant image]"} | Assistant: ${response}`;
     await storeMemory(memText, senderJid, remoteJid);
   } catch (err) {
     logger.warn({ err }, "Memory store failed (non-critical)");
@@ -139,6 +142,9 @@ async function persistAndEnrich(
  */
 export async function processMessage(msg: IncomingMessage, res: Responder): Promise<void> {
   const { userId, remoteJid, displayName: pushName, text, hasImage } = msg;
+  // The transport routes each message to a persona (by group/number). Fall back
+  // to the default persona for 1:1/web channels or any unrouted message.
+  const persona = msg.persona ?? getDefaultPersona();
 
   // Whether this is the farmer's very first message (checked before any upsert)
   // so we can send the one-time consent/onboarding notice to new contacts.
@@ -153,7 +159,7 @@ export async function processMessage(msg: IncomingMessage, res: Responder): Prom
     await deleteUserData(userId);
     await deleteUserMemories(userId);
     await res.send(
-      `🗑️ Done, ${pushName}. I've erased everything I had about you. Message me anytime to start fresh — I'm always here to help. 🌱\n— Agri-Dosth`
+      `🗑️ Done, ${pushName}. I've erased everything I had about you. Message me anytime to start fresh — I'm always here to help. 🌱\n— ${persona.displayName}`
     );
     return;
   }
@@ -166,7 +172,7 @@ export async function processMessage(msg: IncomingMessage, res: Responder): Prom
     if (text && isResumeMessage(text)) {
       await clearOptOut(userId);
       await res.send(
-        `🌱 Welcome back, ${pushName}! Good to hear from you again. Ask me anything about your crops or farm. (Reply STOP anytime to unsubscribe.)\n— Agri-Dosth`
+        `🌱 Welcome back, ${pushName}! Good to hear from you again. Ask me anything about your plants and garden. (Reply STOP anytime to unsubscribe.)\n— ${persona.displayName}`
       );
     }
     // Opted out and not resuming → stay silent; replying would defeat the opt-out.
@@ -178,7 +184,7 @@ export async function processMessage(msg: IncomingMessage, res: Responder): Prom
     // farmer ("you won't receive further replies") is durable across a restart.
     await setOptOut(userId);
     await res.send(
-      `👋 You've been unsubscribed, ${pushName}. I won't message you further. Reply START anytime to come back — take care! 🌱\n— Agri-Dosth`
+      `👋 You've been unsubscribed, ${pushName}. I won't message you further. Reply START anytime to come back — take care! 🌱\n— ${persona.displayName}`
     );
     return;
   }
@@ -189,7 +195,7 @@ export async function processMessage(msg: IncomingMessage, res: Responder): Prom
   // contact already has a user row).
   if (isNewContact) {
     try {
-      await res.send(config.consentMessage);
+      await res.send(persona.consentMessage);
     } catch (err) {
       logger.warn({ err }, "Failed to send consent notice (non-critical)");
     }
@@ -239,13 +245,13 @@ export async function processMessage(msg: IncomingMessage, res: Responder): Prom
   // system prompt). Judging a follow-up in isolation wrongly rejected legitimate
   // replies like "Yes please" to the bot's own offer.
   if (!hasImage && text && !isNewContact && !inConversation) {
-    if (!isFarmingRelated(text) && !(await isFarmingTopic(text))) {
-      await res.send(FARMING_ONLY_REPLY);
+    if (!isInPersonaScope(persona, text) && !(await isFarmingTopic(text))) {
+      await res.send(persona.offTopicReply);
       return;
     }
   }
 
-  upsertUser(userId, pushName, remoteJid);
+  upsertUser(userId, pushName, remoteJid, undefined, persona.idPrefix);
 
   // Assemble context: recent history + vector memory + profile.
   const contextParts: string[] = [];
@@ -272,11 +278,14 @@ export async function processMessage(msg: IncomingMessage, res: Responder): Prom
     // Only treat a real name as known — the "Farmer" fallback means we still
     // don't know it, so the model should ask (per the system prompt).
     const knownName = user.name && user.name !== "Farmer" ? user.name : "";
+    if (user.ctgId) profile.push(`Member ID: ${user.ctgId}`);
     if (knownName) profile.push(`Name: ${knownName}`);
     if (user.phone) profile.push(`Phone: ${user.phone}`);
     if (user.plants) profile.push(`Growing: ${user.plants}`);
     if (user.issues) profile.push(`Past issues: ${user.issues}`);
     if (user.location) profile.push(`Location: ${user.location}`);
+    // Flag a first-time member so the persona greets them and states their ID once.
+    if (isNewContact) profile.push("(This is their FIRST message — welcome them and tell them their Member ID once.)");
     if (profile.length > 0) {
       contextParts.push(`User profile:\n${profile.join(", ")}`);
     }
@@ -290,12 +299,12 @@ export async function processMessage(msg: IncomingMessage, res: Responder): Prom
     if (hasImage) {
       const imageData = await msg.loadImage();
       if (imageData) {
-        response = await analyzeImage(imageData.bytes, imageData.mimeType, text || undefined, context);
+        response = await analyzeImage(imageData.bytes, imageData.mimeType, text || undefined, context, persona.systemPrompt);
       } else {
         response = "I couldn't process the image. Could you try sending it again? 📷";
       }
     } else {
-      response = await generateTextResponse(text, context);
+      response = await generateTextResponse(text, context, persona.systemPrompt);
     }
   } catch (err) {
     bump("errors");

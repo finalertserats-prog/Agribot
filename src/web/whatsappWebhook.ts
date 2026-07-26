@@ -3,6 +3,8 @@ import express, { type Router, type Request } from "express";
 import { logger } from "../lib/logger";
 import { SeenCache } from "../lib/seen";
 import { processMessage, type IncomingMessage, type Responder } from "../core/reply";
+import { resolvePersona } from "../config/personas";
+import { config } from "../config";
 import type { CloudConfig } from "../config";
 
 /** A normalized inbound message pulled out of Meta's webhook payload. */
@@ -139,6 +141,8 @@ export async function dispatchInbound(
       text: m.text,
       hasImage: m.hasImage,
       loadImage: async () => (m.imageId ? messenger.fetchImage(m.imageId) : null),
+      // 1:1 Cloud has no group — route by the number the message arrived on.
+      persona: resolvePersona({ phoneNumberId: config.cloud?.phoneNumberId }),
     };
 
     const responder: Responder = {

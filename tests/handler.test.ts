@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { proto, WASocket } from "@whiskeysockets/baileys";
 
 // ---- mock the collaborator modules (domain helpers stay real) ----
@@ -110,7 +110,7 @@ describe("handleMessage — DM text", () => {
     await handleMessage(s, textMsg("what is the football score tonight"), false, "u1@s.whatsapp.net");
     expect(generateTextResponse).not.toHaveBeenCalled();
     const sent = (s.sendMessage as any).mock.calls[0][1].text as string;
-    expect(sent).toContain("growing");
+    expect(sent).toContain("gardening");
   });
 
   it("classifier fallback allows a farming question with no keyword", async () => {
@@ -148,11 +148,28 @@ describe("handleMessage — Baileys groups-only mode", () => {
 });
 
 describe("handleMessage — groups", () => {
-  it("stays silent in a group without the trigger word", async () => {
+  // Pin the trigger so these tests are deterministic regardless of the local
+  // .env BOT_TRIGGER (which a deployment may set to "ctg" etc.).
+  let savedTrigger: string;
+  beforeEach(() => {
+    savedTrigger = config.botTrigger;
+    (config as any).botTrigger = "agrifriend";
+  });
+  afterEach(() => {
+    (config as any).botTrigger = savedTrigger;
+  });
+
+  it("stays silent for untagged chit-chat (not a gardening question)", async () => {
     const s = fakeSocket();
-    await handleMessage(s, textMsg("how do I grow tomatoes?"), true, "u1@s.whatsapp.net");
+    await handleMessage(s, textMsg("good morning everyone, nice weather today"), true, "u1@s.whatsapp.net");
     expect(s.sendMessage).not.toHaveBeenCalled();
     expect(generateTextResponse).not.toHaveBeenCalled();
+  });
+
+  it("smart auto-replies to a clear gardening question without a tag", async () => {
+    const s = fakeSocket();
+    await handleMessage(s, textMsg("how do I grow tomatoes on my terrace?"), true, "u1@s.whatsapp.net");
+    expect(generateTextResponse).toHaveBeenCalledOnce();
   });
 
   it("responds in a group when triggered", async () => {

@@ -92,7 +92,7 @@ describe("processMessage — transport-agnostic core", () => {
     const { sent, responder } = capture();
     await processMessage(incoming("what is the football score tonight"), responder);
     expect(generateTextResponse).not.toHaveBeenCalled();
-    expect(sent.join(" ")).toContain("growing"); // FARMING_ONLY_REPLY
+    expect(sent.join(" ")).toContain("gardening"); // persona.offTopicReply
   });
 
   it("re-applies the guardrail for STALE history (last turn > 1h ago)", async () => {
@@ -103,7 +103,7 @@ describe("processMessage — transport-agnostic core", () => {
     const { sent, responder } = capture();
     await processMessage(incoming("what is the football score tonight"), responder);
     expect(generateTextResponse).not.toHaveBeenCalled();
-    expect(sent.join(" ")).toContain("growing");
+    expect(sent.join(" ")).toContain("gardening");
   });
 
   it("opts a user out on STOP without calling Gemini", async () => {

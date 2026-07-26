@@ -19,6 +19,9 @@ export interface UserRecord {
   /** Comma-list of fields the user set explicitly (e.g. via the onboarding
    *  form). Opportunistic extraction must not overwrite these. */
   confirmed: string;
+  /** Stable CTG member ID (e.g. "CTG-7202-014"), mobile-keyed, assigned once on
+   *  first contact. Empty only for rows created before the ID system existed. */
+  ctgId: string;
 }
 
 export interface Interaction {
@@ -80,6 +83,25 @@ export async function initDB(): Promise<void> {
     /* column already exists — nothing to do */
   }
 
+  // Migration: stable CTG member ID (mobile-keyed), assigned once on first
+  // contact. Appended after confirmedFields so getUser's positional read stays
+  // correct (row[10]).
+  try {
+    db.run("ALTER TABLE users ADD COLUMN ctgId TEXT DEFAULT ''");
+  } catch {
+    /* column already exists — nothing to do */
+  }
+
+  // Monotonic counter for the CTG member-ID sequence. A dedicated counter (not
+  // a live row count) keeps IDs unique and never reuses a number after a member
+  // is erased.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS meta (
+      key TEXT PRIMARY KEY,
+      value INTEGER NOT NULL
+    );
+  `);
+
   db.run(`
     CREATE TABLE IF NOT EXISTS interactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -121,11 +143,35 @@ export async function flushDB(): Promise<void> {
   if (saver) await saver.flush();
 }
 
+/** Last 4 digits of a member's phone, pulled from their WhatsApp id (JID or
+ *  bare wa_id). Falls back to "0000" if the id carries no digits. */
+export function ctgLast4(userId: string): string {
+  const digits = userId.split("@")[0].replace(/\D/g, "");
+  return digits.length >= 4 ? digits.slice(-4) : digits.padStart(4, "0");
+}
+
+/** Next member sequence number (monotonic, never reused). */
+function nextCtgSequence(): number {
+  const res = db.exec("SELECT value FROM meta WHERE key = 'ctg_seq'");
+  const current = res.length > 0 && res[0].values.length > 0 ? (res[0].values[0][0] as number) : 0;
+  const next = current + 1;
+  db.run("INSERT OR REPLACE INTO meta (key, value) VALUES ('ctg_seq', ?)", [next]);
+  return next;
+}
+
+/** Build a fresh member ID for this user, e.g. "CTG-7202-014". The prefix is the
+ *  active persona's (CTG, ROSE, …), so IDs signal which community a member joined. */
+function generateMemberId(userId: string, prefix: string): string {
+  const seq = String(nextCtgSequence()).padStart(3, "0");
+  return `${prefix}-${ctgLast4(userId)}-${seq}`;
+}
+
 export function upsertUser(
   id: string,
   name: string,
   groupId: string,
-  extra?: Partial<Pick<UserRecord, "plants" | "issues" | "location">>
+  extra?: Partial<Pick<UserRecord, "plants" | "issues" | "location">>,
+  idPrefix: string = "CTG"
 ): void {
   const now = new Date().toISOString();
   const existing = db.exec("SELECT * FROM users WHERE id = ?", [id]);
@@ -140,13 +186,17 @@ export function upsertUser(
     // still only have a placeholder.
     const currentName = row[1] as string;
     const keptName = currentName && currentName !== "Farmer" ? currentName : name;
-    db.run("UPDATE users SET name = ?, plants = ?, issues = ?, location = ?, lastSeen = ? WHERE id = ?", [
-      keptName, plants, issues, location, now, id,
-    ]);
+    // Backfill a member ID for rows created before the ID system existed.
+    const currentCtgId = (row[10] as string) ?? "";
+    const ctgId = currentCtgId || generateMemberId(id, idPrefix);
+    db.run(
+      "UPDATE users SET name = ?, plants = ?, issues = ?, location = ?, lastSeen = ?, ctgId = ? WHERE id = ?",
+      [keptName, plants, issues, location, now, ctgId, id]
+    );
   } else {
     db.run(
-      "INSERT INTO users (id, name, groupId, plants, issues, location, firstSeen, lastSeen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [id, name, groupId, extra?.plants || "", extra?.issues || "", extra?.location || "", now, now]
+      "INSERT INTO users (id, name, groupId, plants, issues, location, firstSeen, lastSeen, ctgId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [id, name, groupId, extra?.plants || "", extra?.issues || "", extra?.location || "", now, now, generateMemberId(id, idPrefix)]
     );
   }
 
@@ -320,6 +370,7 @@ export function getUser(id: string): UserRecord | undefined {
     lastSeen: row[7] as string,
     phone: (row[8] as string) ?? "",
     confirmed: (row[9] as string) ?? "",
+    ctgId: (row[10] as string) ?? "",
   };
 }
 

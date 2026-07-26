@@ -35,9 +35,10 @@ export function framedContext(context?: string): string {
 
 export async function generateTextResponse(
   userMessage: string,
-  context?: string
+  context?: string,
+  personaPrompt: string = config.systemPrompt
 ): Promise<string> {
-  const prompt = `${config.systemPrompt}${framedContext(context)}\n\nUser message: ${userMessage}`;
+  const prompt = `${personaPrompt}${framedContext(context)}\n\nUser message: ${userMessage}`;
   return withRetry(() => getProvider().generateText(prompt));
 }
 
@@ -45,9 +46,10 @@ export async function analyzeImage(
   imageBytes: Uint8Array,
   mimeType: string,
   userMessage?: string,
-  context?: string
+  context?: string,
+  personaPrompt: string = config.systemPrompt
 ): Promise<string> {
-  const systemPrompt = `${config.systemPrompt}${framedContext(context)}`;
+  const systemPrompt = `${personaPrompt}${framedContext(context)}`;
   const userText =
     userMessage ||
     "Analyze this plant/crop image. Identify any issues, diseases, or if it looks healthy. Be concise and practical.";

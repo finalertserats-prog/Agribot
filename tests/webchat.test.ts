@@ -47,7 +47,7 @@ describe("webChat — context-aware farming guardrail", () => {
     (getRecentInteractions as any).mockReturnValue([]);
     const r = await webChat({ sessionId: "web-1", message: "what is the football score tonight" });
     expect(generateTextResponse).not.toHaveBeenCalled();
-    expect(r.reply).toContain("growing");
+    expect(r.reply).toContain("gardening");
   });
 
   it("re-applies the guardrail for STALE history (> 1h ago)", async () => {
@@ -56,6 +56,6 @@ describe("webChat — context-aware farming guardrail", () => {
     ]);
     const r = await webChat({ sessionId: "web-1", message: "who won the match" });
     expect(generateTextResponse).not.toHaveBeenCalled();
-    expect(r.reply).toContain("growing");
+    expect(r.reply).toContain("gardening");
   });
 });

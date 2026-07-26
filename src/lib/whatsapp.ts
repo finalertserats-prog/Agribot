@@ -29,6 +29,26 @@ export type MessageHandler = (
 
 let socket: WASocket;
 
+// Cache of group JID → subject (name), used for persona routing. Group subjects
+// change rarely, so a single metadata fetch per group is enough; a failed fetch
+// caches undefined briefly so we don't hammer the API for a group we can't read.
+const groupNameCache = new Map<string, { name?: string; at: number }>();
+const GROUP_NAME_TTL_MS = 60 * 60_000; // refresh at most hourly
+
+async function resolveGroupName(sock: WASocket, jid: string): Promise<string | undefined> {
+  const cached = groupNameCache.get(jid);
+  if (cached && Date.now() - cached.at < GROUP_NAME_TTL_MS) return cached.name;
+  try {
+    const meta = await sock.groupMetadata(jid);
+    groupNameCache.set(jid, { name: meta.subject, at: Date.now() });
+    return meta.subject;
+  } catch (err) {
+    logger.debug({ err, jid }, "groupMetadata fetch failed — routing by JID/default");
+    groupNameCache.set(jid, { name: undefined, at: Date.now() });
+    return undefined;
+  }
+}
+
 // Drop duplicate deliveries — Baileys can redeliver messages on resync AND on
 // restart. The cache is persisted so a restart (e.g. after a crash) doesn't
 // reprocess and double-reply to redelivered messages.
@@ -216,8 +236,12 @@ export async function connectWhatsApp(
       if (!participant) continue; // group message without a sender — skip
       const senderJid = jidNormalizedUser(participant);
 
+      // Group name drives persona routing. Resolve it once per group and cache
+      // it (subjects rarely change) so we don't fetch metadata on every message.
+      const groupName = isGroup ? await resolveGroupName(socket, remoteJid) : undefined;
+
       try {
-        await onMessage(socket, msg, isGroup, senderJid);
+        await onMessage(socket, msg, isGroup, senderJid, groupName);
         if (msgId) seenSaver?.schedule(); // persist only processed ids
       } catch (err) {
         logger.error({ err, msgId }, "Message handler threw");
