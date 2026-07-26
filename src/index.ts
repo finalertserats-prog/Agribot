@@ -84,8 +84,13 @@ async function main(): Promise<void> {
   registerShutdown();
 
   // Baileys — handles DMs AND groups (groups stay on Baileys; the Cloud API
-  // can't serve real community groups).
-  await connectWhatsApp(handleMessage);
+  // can't serve real community groups). Skippable via BAILEYS_ENABLED=false so
+  // the Cloud 1:1 backbone can run alone, fully stable, with no group activity.
+  if (config.baileysEnabled) {
+    await connectWhatsApp(handleMessage);
+  } else {
+    logger.warn("Baileys transport disabled (BAILEYS_ENABLED=false) — Cloud-only mode");
+  }
 
   // Official WhatsApp Cloud API — 1:1 transport, started only when configured.
   // Shares this process (and DB) with Baileys.

@@ -204,27 +204,27 @@ export async function connectWhatsApp(
         logger.warn({ statusCode }, "Connection closed — will reconnect");
         scheduleReconnect(onMessage);
       } else {
-        // Logged out (401): the saved creds are now dead. Clear them BEFORE
-        // exiting so the process manager's restart comes up on a fresh QR
-        // instead of reloading the invalid session and getting logged out
-        // again — that reload loop hammers WhatsApp and worsens flagging.
+        // Logged out (401): the saved creds are dead. Clear them so a future
+        // MANUAL restart comes up on a fresh pairing code. Critically, do NOT
+        // exit the process: this process also hosts the Cloud 1:1 backbone, and
+        // exiting (then pm2-restarting) a blocked number is exactly what loops
+        // and hammers WhatsApp. Instead Baileys just stops here — no reconnect,
+        // no exit — leaving Cloud 1:1 fully unaffected until an operator relinks.
         logger.error(
-          "Logged out by WhatsApp — clearing the session so the next start shows a fresh QR to re-link."
+          "Baileys logged out by WhatsApp — session cleared, Baileys is now OFF. Cloud 1:1 keeps running. Restart the process to re-link the group number."
         );
         try {
           fs.rmSync(config.authDir, { recursive: true, force: true });
         } catch (err) {
           logger.error({ err }, "Failed to clear auth dir after logout");
         }
-        // Alert the operator (logs always; POSTs to OPS_WEBHOOK_URL if set) that a
-        // human must re-scan the QR. Exit only after the alert attempt resolves so
-        // the webhook has a chance to fire before the process dies.
+        // Alert the operator (logs always; POSTs to OPS_WEBHOOK_URL if set).
         void notify({
           level: "critical",
           reason:
-            "WhatsApp logged the bot out — re-link needed. Run `pm2 logs agrifriend` and scan the fresh QR.",
+            "Baileys (group) logged out — re-link needed. Cloud 1:1 is unaffected. Restart agrifriend to show a fresh pairing code.",
           at: new Date().toISOString(),
-        }).finally(() => process.exit(1));
+        });
         return;
       }
     }
