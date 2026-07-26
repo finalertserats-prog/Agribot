@@ -79,15 +79,15 @@ describe("connectWhatsApp", () => {
     expect((makeWASocket as any).mock.calls.length).toBe(before + 1);
   });
 
-  it("does NOT reconnect on loggedOut — exits instead", async () => {
+  it("on loggedOut, stops Baileys WITHOUT exiting or reconnecting (Cloud stays up)", async () => {
+    // A Baileys logout must NOT kill the process — the Cloud 1:1 backbone shares
+    // it. Baileys just stops: no process.exit, no reconnect, until a manual restart.
     const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
     await connectWhatsApp(vi.fn());
     const before = (makeWASocket as any).mock.calls.length;
     shared.sockets.at(-1).ev.emit("connection.update", closeEvt(401));
-    // Exit now runs after the operator alert resolves (notify().finally(exit)),
-    // so flush microtasks before asserting.
     await vi.advanceTimersByTimeAsync(0);
-    expect(exitSpy).toHaveBeenCalled();
+    expect(exitSpy).not.toHaveBeenCalled(); // process survives — Cloud keeps running
     await vi.advanceTimersByTimeAsync(70_000);
     expect((makeWASocket as any).mock.calls.length).toBe(before); // no reconnect
     exitSpy.mockRestore();
