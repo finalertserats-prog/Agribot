@@ -101,7 +101,12 @@ export const PERSONAS: readonly Persona[] = [
     offTopicReply: CTG_ADMN_OFFTOPIC,
     scopeKeywords: ["ctg", "jeevamrutham", "panchagavya", "trichoderma"],
     match: {
+      // Pinned CTG group. Case-insensitive substring match, so this covers
+      // "City of Terrace Garden", "CTG Hyderabad", "CTG - Members", etc.
+      // For an exact, rename-proof lock, add the group's JID to `groupIds`
+      // (find it in the logs: it looks like "12036304...@g.us").
       groupPatterns: ["city of terrace garden", "ctg"],
+      groupIds: [], // e.g. ["120363000000000000@g.us"] — add the real CTG group JID here
     },
   },
   // --- Template: copy this block for a new community ---------------------------
