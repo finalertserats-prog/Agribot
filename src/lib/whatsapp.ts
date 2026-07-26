@@ -162,30 +162,34 @@ export async function connectWhatsApp(
 
   socket.ev.on("creds.update", saveCreds);
 
-  // Pairing-code linking (no QR): if configured and this device isn't yet
-  // registered, request an 8-digit code the operator types into WhatsApp
-  // ("Link with phone number instead"). Ideal for headless/VPS setup where
-  // pointing a camera at a terminal QR isn't practical. Falls back to the QR
-  // flow if the request fails.
-  if (config.pairingNumber && !socket.authState.creds.registered) {
-    try {
-      const code = await socket.requestPairingCode(config.pairingNumber);
-      const pretty = code.match(/.{1,4}/g)?.join("-") ?? code;
-      logger.info({ number: config.pairingNumber }, "Pairing code issued — link within a few minutes");
-      console.log(
-        `\n🔗 Link WhatsApp WITHOUT a QR:\n\n    Pairing code:  ${pretty}\n\n` +
-          `On ${config.pairingNumber}: WhatsApp → Settings → Linked Devices → ` +
-          `Link a Device → "Link with phone number instead" → enter the code.\n`
-      );
-    } catch (err) {
-      logger.error({ err }, "Pairing-code request failed — falling back to QR");
-    }
-  }
+  // Link either by pairing code (no QR) or QR. When BAILEYS_PAIRING_NUMBER is
+  // set we request an 8-digit code the operator types into WhatsApp ("Link with
+  // phone number instead") — ideal for headless/VPS setup. The request MUST run
+  // after the socket is ready (first qr tick), not right after creation, or
+  // Baileys throws 428 "Connection Closed". Requested once per connection.
+  let pairingRequested = false;
 
-  socket.ev.on("connection.update", (update) => {
+  socket.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
+      if (config.pairingNumber && !socket.authState.creds.registered && !pairingRequested) {
+        pairingRequested = true;
+        try {
+          const code = await socket.requestPairingCode(config.pairingNumber);
+          const pretty = code.match(/.{1,4}/g)?.join("-") ?? code;
+          logger.info({ number: config.pairingNumber }, "Pairing code issued — link within a few minutes");
+          console.log(
+            `\n🔗 Link WhatsApp WITHOUT a QR:\n\n    Pairing code:  ${pretty}\n\n` +
+              `On ${config.pairingNumber}: WhatsApp → Settings → Linked Devices → ` +
+              `Link a Device → "Link with phone number instead" → enter the code.\n`
+          );
+          return; // pairing code shown — don't also print a QR this tick
+        } catch (err) {
+          logger.error({ err }, "Pairing-code request failed — falling back to QR");
+          // fall through to the QR flow below
+        }
+      }
       logger.info("Scan the QR code below with WhatsApp to link the bot");
       console.log("\n📱 Scan this QR code with WhatsApp:\n");
       qrcode.generate(qr, { small: true });
