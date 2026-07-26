@@ -3,7 +3,7 @@ import express, { type Router, type Request } from "express";
 import { logger } from "../lib/logger";
 import { SeenCache } from "../lib/seen";
 import { processMessage, type IncomingMessage, type Responder } from "../core/reply";
-import { resolvePersona } from "../config/personas";
+import { resolvePersona, isInPersonaScope } from "../config/personas";
 import { config } from "../config";
 import type { CloudConfig } from "../config";
 
@@ -17,11 +17,16 @@ export interface InboundCloudMessage {
   hasImage: boolean;
   imageId?: string;
   mimeType?: string;
+  /** Present ONLY for official Groups API messages — the group's id. When set,
+   *  waId is the participant who spoke and the reply must go to this group. */
+  groupId?: string;
 }
 
 /** Outbound side of the Cloud transport — implemented by WhatsAppCloudTransport. */
 export interface CloudMessenger {
-  sendText(to: string, text: string): Promise<void>;
+  /** `isGroup` sends with recipient_type=group (official Groups API); the `to`
+   *  is then a group id, not a wa_id. */
+  sendText(to: string, text: string, isGroup?: boolean): Promise<void>;
   fetchImage(mediaId: string): Promise<{ bytes: Uint8Array; mimeType: string } | null>;
 }
 
@@ -99,8 +104,10 @@ export function parseInboundMessages(payload: unknown): InboundCloudMessage[] {
         if (!waId || !messageId) continue;
         const name = names.get(waId) || "Farmer";
 
+        // Official Groups API messages carry a group_id; 1:1 messages don't.
+        const groupId = typeof m.group_id === "string" ? m.group_id : undefined;
         if (m.type === "text" && m.text?.body) {
-          out.push({ waId, name, messageId, text: m.text.body, hasImage: false });
+          out.push({ waId, name, messageId, text: m.text.body, hasImage: false, groupId });
         } else if (m.type === "image" && m.image?.id) {
           out.push({
             waId,
@@ -110,6 +117,7 @@ export function parseInboundMessages(payload: unknown): InboundCloudMessage[] {
             hasImage: true,
             imageId: m.image.id,
             mimeType: m.image.mime_type || "image/jpeg",
+            groupId,
           });
         }
         // Other types (audio, location, sticker, ...) are intentionally skipped.
@@ -134,20 +142,39 @@ export async function dispatchInbound(
       continue;
     }
 
+    // Official Groups API message → route by group; else 1:1 by the number.
+    const persona = resolvePersona({
+      groupId: m.groupId,
+      phoneNumberId: config.cloud?.phoneNumberId,
+    });
+
+    // Smart auto-reply in an official group pod: answer only when tagged
+    // (trigger / persona name) or when the message is a gardening question in
+    // scope — mirrors the Baileys group behavior so pods aren't spammed.
+    if (m.groupId && !m.hasImage) {
+      const lower = m.text.toLowerCase();
+      const tagged =
+        lower.includes(config.botTrigger.toLowerCase()) ||
+        lower.includes(persona.displayName.toLowerCase());
+      if (!tagged && !isInPersonaScope(persona, m.text)) {
+        continue; // untagged group chit-chat — stay silent (already marked seen above)
+      }
+    }
+
     const incoming: IncomingMessage = {
-      userId: m.waId,
-      remoteJid: m.waId, // 1:1 only — the conversation IS the user
+      userId: m.waId, // the participant (group) or the user (1:1)
+      remoteJid: m.groupId ?? m.waId, // reply target: the group, or the user
       displayName: m.name,
       text: m.text,
       hasImage: m.hasImage,
       loadImage: async () => (m.imageId ? messenger.fetchImage(m.imageId) : null),
-      // 1:1 Cloud has no group — route by the number the message arrived on.
-      persona: resolvePersona({ phoneNumberId: config.cloud?.phoneNumberId }),
+      persona,
     };
 
     const responder: Responder = {
       send: async (t: string) => {
-        await messenger.sendText(m.waId, t);
+        // Group replies go to the group id with recipient_type=group.
+        await messenger.sendText(m.groupId ?? m.waId, t, Boolean(m.groupId));
       },
     };
 

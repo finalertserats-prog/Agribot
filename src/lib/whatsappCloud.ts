@@ -38,13 +38,15 @@ export class WhatsAppCloudClient implements CloudMessenger {
    * window (i.e. as a reply to a farmer-initiated message) — which is exactly
    * how the reactive bot is used. Outbound-outside-window needs a template.
    */
-  async sendText(to: string, text: string): Promise<void> {
+  async sendText(to: string, text: string, isGroup = false): Promise<void> {
+    // Same /messages endpoint for 1:1 and groups — only recipient_type differs.
+    // For a group, `to` is the group id (official Groups API).
     const res = await this.fetchFn(`${this.base}/${this.cfg.phoneNumberId}/messages`, {
       method: "POST",
       headers: { ...this.authHeader(), "Content-Type": "application/json" },
       body: JSON.stringify({
         messaging_product: "whatsapp",
-        recipient_type: "individual",
+        recipient_type: isGroup ? "group" : "individual",
         to,
         type: "text",
         text: { preview_url: false, body: text },

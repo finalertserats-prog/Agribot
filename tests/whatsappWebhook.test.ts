@@ -194,6 +194,48 @@ describe("dispatchInbound — routing to the core", () => {
       m,
       new SeenCache(100)
     );
-    expect(m.sendText).toHaveBeenCalledWith("91999", "reply text");
+    expect(m.sendText).toHaveBeenCalledWith("91999", "reply text", false); // 1:1 => not a group
+  });
+
+  it("routes an official GROUP message to the group and replies with recipient_type=group", async () => {
+    const m = messenger();
+    (processMessage as any).mockImplementationOnce(async (_msg: any, res: any) => {
+      await res.send("grow tip");
+    });
+    await dispatchInbound(
+      [
+        {
+          waId: "91999",
+          name: "Ravi",
+          messageId: "wamid.G",
+          text: "how do I grow tomatoes?", // in-scope gardening question → answered
+          hasImage: false,
+          groupId: "120363-group",
+        },
+      ],
+      m,
+      new SeenCache(100)
+    );
+    // Reply goes to the GROUP id, flagged as a group send.
+    expect(m.sendText).toHaveBeenCalledWith("120363-group", "grow tip", true);
+  });
+
+  it("stays silent on untagged off-topic chit-chat in a group", async () => {
+    const m = messenger();
+    await dispatchInbound(
+      [
+        {
+          waId: "91999",
+          name: "Ravi",
+          messageId: "wamid.H",
+          text: "good morning everyone",
+          hasImage: false,
+          groupId: "120363-group",
+        },
+      ],
+      m,
+      new SeenCache(100)
+    );
+    expect(m.sendText).not.toHaveBeenCalled();
   });
 });
