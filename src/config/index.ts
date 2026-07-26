@@ -56,6 +56,13 @@ const envSchema = z
   // 1:1 has moved to the Cloud API number, to enforce a clean split. Default
   // (unset/false) keeps Baileys handling its own DMs too (no behavior change).
   BAILEYS_GROUPS_ONLY: z.preprocess(blankToUndef, z.enum(["true", "false"]).optional()),
+  // Link Baileys by 8-digit PAIRING CODE instead of a QR (no camera needed —
+  // ideal for headless/VPS setup). Value = the number to link, international
+  // format, digits only, no "+" (e.g. 919951387202). Unset => QR flow.
+  BAILEYS_PAIRING_NUMBER: z.preprocess(
+    blankToUndef,
+    z.string().regex(/^\d{7,15}$/, "digits only, international format, no '+'").optional()
+  ),
   })
   .refine((e) => resolveProviderName(e) !== null, {
     message:
@@ -153,6 +160,8 @@ export const config = {
   cloud: resolveCloudConfig(env),
   // When true, Baileys serves ONLY groups (1:1 handled by the Cloud API).
   baileysGroupsOnly: env.BAILEYS_GROUPS_ONLY === "true",
+  // Link Baileys via pairing code (no QR) to this number; undefined => QR flow.
+  pairingNumber: env.BAILEYS_PAIRING_NUMBER,
   authDir: "./auth_info",
   dataDir: env.DATA_DIR,
   dbPath: `${env.DATA_DIR}/agrifriend.db`,
