@@ -163,8 +163,38 @@ describe("dispatchInbound — routing to the core", () => {
     return {
       sendText: vi.fn(async () => {}),
       fetchImage: vi.fn(async () => ({ bytes: new Uint8Array([1]), mimeType: "image/jpeg" })),
+      markReadAndTyping: vi.fn(async () => {}),
     };
   }
+
+  it("marks a 1:1 message read + shows typing (human touch), by message id", async () => {
+    const m = messenger();
+    await dispatchInbound(
+      [{ waId: "91999", name: "Ravi", messageId: "wamid.T", text: "hi", hasImage: false }],
+      m,
+      new SeenCache(100)
+    );
+    expect(m.markReadAndTyping).toHaveBeenCalledWith("wamid.T");
+  });
+
+  it("does NOT show a typing indicator for group messages", async () => {
+    const m = messenger();
+    await dispatchInbound(
+      [
+        {
+          waId: "91999",
+          name: "Ravi",
+          messageId: "wamid.TG",
+          text: "how do I grow tomatoes?",
+          hasImage: false,
+          groupId: "120363-group",
+        },
+      ],
+      m,
+      new SeenCache(100)
+    );
+    expect(m.markReadAndTyping).not.toHaveBeenCalled();
+  });
 
   it("calls processMessage once per new message", async () => {
     const seen = new SeenCache(100);

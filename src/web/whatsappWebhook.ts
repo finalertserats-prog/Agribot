@@ -28,6 +28,8 @@ export interface CloudMessenger {
    *  is then a group id, not a wa_id. */
   sendText(to: string, text: string, isGroup?: boolean): Promise<void>;
   fetchImage(mediaId: string): Promise<{ bytes: Uint8Array; mimeType: string } | null>;
+  /** Mark read + show a "typing…" indicator (human-feel). Best-effort/no-throw. */
+  markReadAndTyping?(messageId: string): Promise<void>;
 }
 
 interface VerifyQuery {
@@ -177,6 +179,11 @@ export async function dispatchInbound(
         await messenger.sendText(m.groupId ?? m.waId, t, Boolean(m.groupId));
       },
     };
+
+    // Human touch (1:1): mark the message read (blue ticks) + show "typing…"
+    // while CTG Admn thinks. Best-effort — fired-and-forgotten so it never
+    // delays or blocks the actual reply.
+    if (!m.groupId) void messenger.markReadAndTyping?.(m.messageId);
 
     try {
       await processMessage(incoming, responder);

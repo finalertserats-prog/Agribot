@@ -61,6 +61,33 @@ export class WhatsAppCloudClient implements CloudMessenger {
   }
 
   /**
+   * Mark the farmer's message read (blue ticks) AND show a "typing…" indicator,
+   * so CTG Admn reads-then-thinks like a person instead of firing back instantly.
+   * Official Cloud API feature — no ban risk. The indicator auto-dismisses when we
+   * reply (or after 25s). Best-effort: a human-feel touch, never worth failing a
+   * reply over, so errors are logged and swallowed.
+   */
+  async markReadAndTyping(messageId: string): Promise<void> {
+    try {
+      const res = await this.fetchFn(`${this.base}/${this.cfg.phoneNumberId}/messages`, {
+        method: "POST",
+        headers: { ...this.authHeader(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          status: "read",
+          message_id: messageId,
+          typing_indicator: { type: "text" },
+        }),
+      });
+      if (!res.ok) {
+        logger.debug({ status: res.status }, "[cloud] markReadAndTyping non-OK (non-critical)");
+      }
+    } catch (err) {
+      logger.debug({ err }, "[cloud] markReadAndTyping failed (non-critical)");
+    }
+  }
+
+  /**
    * Two-step media download: resolve the media id to a short-lived URL, then
    * fetch the bytes (both require the bearer token). Returns null on any
    * failure or if the image exceeds the size cap — callers treat null as
