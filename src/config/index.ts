@@ -56,10 +56,14 @@ const envSchema = z
   // 1:1 has moved to the Cloud API number, to enforce a clean split. Default
   // (unset/false) keeps Baileys handling its own DMs too (no behavior change).
   BAILEYS_GROUPS_ONLY: z.preprocess(blankToUndef, z.enum(["true", "false"]).optional()),
-  // Master switch for the Baileys (unofficial) transport. Set "false" to run
-  // Cloud-API-only — a fully stable, official 1:1 bot with zero Baileys/group
-  // activity (useful while a WhatsApp re-link block cools down). Default: on.
+  // Master switch for the unofficial group transport. Set "false" to run
+  // Cloud-API-only — a fully stable, official 1:1 bot with zero group activity
+  // (useful while a WhatsApp re-link block cools down). Default: on.
   BAILEYS_ENABLED: z.preprocess(blankToUndef, z.enum(["true", "false"]).optional()),
+  // Which unofficial library serves WhatsApp GROUPS: "baileys" (default, light)
+  // or "whatsapp-web" (Plan B — Puppeteer/real-Chrome, needs `npm install
+  // whatsapp-web.js` + Chromium; often more resilient to WhatsApp changes).
+  GROUP_TRANSPORT: z.preprocess(blankToUndef, z.enum(["baileys", "whatsapp-web"]).optional()),
   // Link Baileys by 8-digit PAIRING CODE instead of a QR (no camera needed —
   // ideal for headless/VPS setup). Value = the number to link, international
   // format, digits only, no "+" (e.g. 919951387202). Unset => QR flow.
@@ -166,8 +170,10 @@ export const config = {
   baileysGroupsOnly: env.BAILEYS_GROUPS_ONLY === "true",
   // Link Baileys via pairing code (no QR) to this number; undefined => QR flow.
   pairingNumber: env.BAILEYS_PAIRING_NUMBER,
-  // Master switch for the Baileys transport (default on). "false" => Cloud-only.
+  // Master switch for the group transport (default on). "false" => Cloud-only.
   baileysEnabled: env.BAILEYS_ENABLED !== "false",
+  // Which library serves groups: "baileys" (default) or "whatsapp-web" (Plan B).
+  groupTransport: env.GROUP_TRANSPORT ?? "baileys",
   authDir: "./auth_info",
   dataDir: env.DATA_DIR,
   dbPath: `${env.DATA_DIR}/agrifriend.db`,

@@ -87,9 +87,15 @@ async function main(): Promise<void> {
   // can't serve real community groups). Skippable via BAILEYS_ENABLED=false so
   // the Cloud 1:1 backbone can run alone, fully stable, with no group activity.
   if (config.baileysEnabled) {
-    await connectWhatsApp(handleMessage);
+    if (config.groupTransport === "whatsapp-web") {
+      // Plan B: Puppeteer-based transport (needs whatsapp-web.js installed).
+      const { connectWhatsAppWeb } = await import("./lib/whatsappWeb");
+      await connectWhatsAppWeb();
+    } else {
+      await connectWhatsApp(handleMessage);
+    }
   } else {
-    logger.warn("Baileys transport disabled (BAILEYS_ENABLED=false) — Cloud-only mode");
+    logger.warn("Group transport disabled (BAILEYS_ENABLED=false) — Cloud-only mode");
   }
 
   // Official WhatsApp Cloud API — 1:1 transport, started only when configured.
