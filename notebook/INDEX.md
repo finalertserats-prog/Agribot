@@ -3,6 +3,18 @@
 Master map of project knowledge. Load this first at session start.
 
 ## Sessions
+- [2026-07-27 — wweb QR link, the status@broadcast send bug, and the expert-depth persona](sessions/2026-07-27-wweb-qr-link-status-bug-expert-persona.md)
+  — QR-linked 7013356256 (blank `BAILEYS_PAIRING_NUMBER` ⇒ QR, not pairing code); found the
+  "every send throws" bug was OUR code replying into `status@broadcast`, not a stale library;
+  rewrote the CTG persona for expert growers (exact quantities, mechanism, multi-part
+  decomposition, accuracy guard). SCARS: changing `WWEB_VERSION` invalidates the session
+  irreversibly; OpenClaw is Baileys-based and is NOT a viable fallback.
+  Pending: re-scan the QR, then test a real send.
+- [2026-07-26 — CTG Admn multi-persona rebrand + group-transport saga (Baileys is dead → whatsapp-web.js)](sessions/2026-07-26-ctg-admn-multipersona-and-baileys-crackdown.md)
+- [2026-07-25 — WhatsApp 1:1 GO-LIVE (Meta app, permanent token, proven end-to-end)](sessions/2026-07-25-whatsapp-golive.md)
+  — co-drove the full Meta setup in-browser; app 2104345650468151, WABA 1763036808044853,
+  test number, permanent System-User token, webhook + `subscribed_apps`. Real message answered.
+  Pending: production number for real farmers; Baileys groups.
 - [2026-07-25 — WhatsApp Cloud API adapter + web onboarding/memory + live deploy](sessions/2026-07-25-whatsapp-cloud-onboarding.md)
   — hybrid transport (Baileys=groups, official Cloud API=1:1) via extracted shared reply core;
   web onboarding form + durable "remember me"; deployed live to VPS (web chat at :8090); HTTPS
