@@ -22,6 +22,13 @@ import { bump } from "../ops/metrics";
  */
 let started = false;
 
+/**
+ * Where pinned WhatsApp Web builds are fetched from. "{version}" is substituted
+ * by whatsapp-web.js's RemoteWebCache with the value of WWEB_VERSION.
+ */
+const WA_VERSION_REMOTE_PATH =
+  "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html";
+
 export async function connectWhatsAppWeb(): Promise<void> {
   if (started) return;
   started = true;
@@ -38,8 +45,32 @@ export async function connectWhatsAppWeb(): Promise<void> {
   }
   const { Client, LocalAuth } = wweb;
 
+  // Escape hatch for a genuine library-vs-WhatsApp mismatch: pin a known-good
+  // WhatsApp Web build via WWEB_VERSION. Strict mode makes a bad version fail
+  // loudly rather than silently falling back to the latest.
+  //
+  // WARNING (learned the hard way, 2026-07-27): changing this value INVALIDATES
+  // THE LINKED SESSION — the next start shows a QR and the number must be
+  // re-scanned, and reverting does not bring the old session back. Never touch
+  // it to chase a send failure without first ruling out our own input handling;
+  // a "<wa-internal> is not a function" throw is far more likely to mean we sent
+  // into a chat we should have ignored (see isNonConversationalChat).
+  if (config.wwebVersion) {
+    logger.info({ webVersion: config.wwebVersion }, "[wweb] pinning WhatsApp Web build");
+  }
+
   const client = new Client({
     authStrategy: new LocalAuth({ dataPath: `${config.authDir}_wweb` }),
+    ...(config.wwebVersion
+      ? {
+          webVersion: config.wwebVersion,
+          webVersionCache: {
+            type: "remote" as const,
+            remotePath: WA_VERSION_REMOTE_PATH,
+            strict: true,
+          },
+        }
+      : {}),
     puppeteer: {
       headless: true,
       // Flags required to run Chromium as root in a container/VPS.
@@ -95,11 +126,31 @@ export async function connectWhatsAppWeb(): Promise<void> {
   await client.initialize();
 }
 
+/** Status broadcasts, broadcast lists and channels — never reply into these. */
+function isNonConversationalChat(chatId: string): boolean {
+  return (
+    chatId === "status@broadcast" ||
+    chatId.endsWith("@broadcast") ||
+    chatId.endsWith("@newsletter")
+  );
+}
+
 /**
  * Adapt a whatsapp-web.js message into the shared reply core — group routing,
  * persona resolution, and smart auto-reply mirror the Baileys handler exactly.
  */
 async function handleWebMessage(client: WwebClient, msg: WwebMessage): Promise<void> {
+  // Status updates and channel posts arrive here like any other message, but
+  // they are not conversations — replying into one is both wrong and fatal:
+  // whatsapp-web.js routes a broadcast send down its Status path, which calls a
+  // WhatsApp page internal that no longer exists and throws on EVERY send. A
+  // freshly linked number syncs its contacts' statuses immediately, so without
+  // this guard the log fills with send failures nobody triggered.
+  if (isNonConversationalChat(msg.from)) {
+    logger.debug({ chatId: msg.from }, "[wweb] ignoring broadcast/channel message");
+    return;
+  }
+
   bump("messages");
 
   const chat = await msg.getChat();

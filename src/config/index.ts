@@ -71,6 +71,13 @@ const envSchema = z
     blankToUndef,
     z.string().regex(/^\d{7,15}$/, "digits only, international format, no '+'").optional()
   ),
+  // Pin the WhatsApp Web build that whatsapp-web.js loads. WhatsApp ships page
+  // changes that break the library's injected code — the symptom is receiving
+  // working fine while every send throws "<wa-internal> is not a function".
+  // Pinning a known-good build restores sending until the library catches up.
+  // Value = a filename (minus .html) from wppconnect-team/wa-version, e.g.
+  // "2.3000.1041661348-alpha". Unset => whatever WhatsApp currently serves.
+  WWEB_VERSION: z.preprocess(blankToUndef, z.string().min(1).optional()),
   })
   .refine((e) => resolveProviderName(e) !== null, {
     message:
@@ -174,6 +181,8 @@ export const config = {
   baileysEnabled: env.BAILEYS_ENABLED !== "false",
   // Which library serves groups: "baileys" (default) or "whatsapp-web" (Plan B).
   groupTransport: env.GROUP_TRANSPORT ?? "baileys",
+  // Pinned WhatsApp Web build for the whatsapp-web transport; undefined => latest.
+  wwebVersion: env.WWEB_VERSION,
   authDir: "./auth_info",
   dataDir: env.DATA_DIR,
   dbPath: `${env.DATA_DIR}/agrifriend.db`,

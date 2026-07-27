@@ -38,9 +38,20 @@ declare module "whatsapp-web.js" {
   export class LocalAuth {
     constructor(opts?: LocalAuthOptions);
   }
+  export interface WebVersionCacheOptions {
+    type: "remote" | "local" | "none";
+    /** URL template; "{version}" is substituted with the requested build. */
+    remotePath?: string;
+    path?: string;
+    /** true => a missing build throws instead of silently using the latest. */
+    strict?: boolean;
+  }
   export interface ClientOptions {
     authStrategy?: LocalAuth;
     puppeteer?: { headless?: boolean; args?: string[]; executablePath?: string };
+    /** Pin the WhatsApp Web build to load (e.g. "2.3000.1041661348-alpha"). */
+    webVersion?: string;
+    webVersionCache?: WebVersionCacheOptions;
   }
   export class Client {
     constructor(opts?: ClientOptions);
