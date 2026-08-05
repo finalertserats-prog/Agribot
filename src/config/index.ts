@@ -31,7 +31,20 @@ const envSchema = z
     // Per-provider model overrides (sensible defaults below).
     GEMINI_TEXT_MODEL: z.string().min(1).default("gemini-2.0-flash"),
     GEMINI_EMBED_MODEL: z.string().min(1).default("text-embedding-004"),
-    OPENAI_TEXT_MODEL: z.string().min(1).default("gpt-4o-mini"),
+    // Members are seasoned growers who spot a confidently-wrong answer about a
+    // named cultivar instantly, and a cheap model supplies exactly that. The
+    // default is a frontier model on purpose — depth is the product here, not a
+    // nice-to-have. Override per deployment if cost matters more than accuracy.
+    OPENAI_TEXT_MODEL: z.string().min(1).default("gpt-5"),
+    // Reasoning models only (gpt-5 family). Sent ONLY when set, because the
+    // chat-completions API rejects it for non-reasoning models like gpt-4.1.
+    // "low" is the measured sweet spot: it keeps the cultivar-level accuracy
+    // that makes the answer worth sending while cutting latency ~4x vs the
+    // default effort, which matters when a grower is waiting in WhatsApp.
+    OPENAI_REASONING_EFFORT: z.preprocess(
+      blankToUndef,
+      z.enum(["minimal", "low", "medium", "high"]).optional()
+    ),
     OPENAI_EMBED_MODEL: z.string().min(1).default("text-embedding-3-small"),
     BOT_TRIGGER: z.string().min(1).default("agrifriend"),
   LOG_LEVEL: z
@@ -78,6 +91,20 @@ const envSchema = z
   // Value = a filename (minus .html) from wppconnect-team/wa-version, e.g.
   // "2.3000.1041661348-alpha". Unset => whatever WhatsApp currently serves.
   WWEB_VERSION: z.preprocess(blankToUndef, z.string().min(1).optional()),
+  // --- Voice (WhatsApp voice notes in, voice notes out) ---
+  // Master switch. Voice costs money per message and needs ffmpeg present, so
+  // it stays opt-in rather than turning itself on the moment a key exists.
+  VOICE_ENABLED: z.preprocess(blankToUndef, z.enum(["true", "false"]).optional()),
+  OPENAI_STT_MODEL: z.string().min(1).default("gpt-4o-transcribe"),
+  OPENAI_TTS_MODEL: z.string().min(1).default("gpt-4o-mini-tts"),
+  OPENAI_TTS_VOICE: z.string().min(1).default("alloy"),
+  // Sarvam (preferred for Telugu — handles code-mixed Telugu-English).
+  SARVAM_API_KEY: z.preprocess(blankToUndef, z.string().min(1).optional()),
+  SARVAM_TTS_MODEL: z.string().min(1).default("bulbul:v3"),
+  SARVAM_SPEAKER: z.string().min(1).default("shubh"),
+  // Azure Speech (alternative Indic engine; region is required alongside the key).
+  AZURE_SPEECH_KEY: z.preprocess(blankToUndef, z.string().min(1).optional()),
+  AZURE_SPEECH_REGION: z.preprocess(blankToUndef, z.string().min(1).optional()),
   })
   .refine((e) => resolveProviderName(e) !== null, {
     message:
@@ -167,10 +194,24 @@ export const config = {
       apiKey: env.OPENAI_API_KEY,
       textModel: env.OPENAI_TEXT_MODEL,
       embedModel: env.OPENAI_EMBED_MODEL,
+      reasoningEffort: env.OPENAI_REASONING_EFFORT,
     },
   },
   botTrigger: env.BOT_TRIGGER,
   logLevel: env.LOG_LEVEL,
+  // Voice pipeline. `enabled` is the only gate callers check; provider
+  // selection lives in src/lib/speech/index.ts.
+  speech: {
+    enabled: env.VOICE_ENABLED === "true",
+    sttModel: env.OPENAI_STT_MODEL,
+    ttsModel: env.OPENAI_TTS_MODEL,
+    ttsVoice: env.OPENAI_TTS_VOICE,
+    sarvamKey: env.SARVAM_API_KEY,
+    sarvamModel: env.SARVAM_TTS_MODEL,
+    sarvamSpeaker: env.SARVAM_SPEAKER,
+    azureKey: env.AZURE_SPEECH_KEY,
+    azureRegion: env.AZURE_SPEECH_REGION,
+  },
   // Official WhatsApp Cloud API transport (1:1 only). null => Baileys-only.
   cloud: resolveCloudConfig(env),
   // When true, Baileys serves ONLY groups (1:1 handled by the Cloud API).

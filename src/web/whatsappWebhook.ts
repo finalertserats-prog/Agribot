@@ -6,6 +6,9 @@ import { processMessage, type IncomingMessage, type Responder } from "../core/re
 import { resolvePersona, isInPersonaScope } from "../config/personas";
 import { config } from "../config";
 import type { CloudConfig } from "../config";
+import { detectLanguage, resolveStt, resolveTts } from "../lib/speech";
+import { toSpokenText } from "../lib/speech/spoken";
+import { toWhatsAppVoice } from "../lib/audio";
 
 /** A normalized inbound message pulled out of Meta's webhook payload. */
 export interface InboundCloudMessage {
@@ -17,6 +20,8 @@ export interface InboundCloudMessage {
   hasImage: boolean;
   imageId?: string;
   mimeType?: string;
+  /** Media id of an inbound voice note / audio message, when one was sent. */
+  audioId?: string;
   /** Present ONLY for official Groups API messages — the group's id. When set,
    *  waId is the participant who spoke and the reply must go to this group. */
   groupId?: string;
@@ -28,6 +33,16 @@ export interface CloudMessenger {
    *  is then a group id, not a wa_id. */
   sendText(to: string, text: string, isGroup?: boolean): Promise<void>;
   fetchImage(mediaId: string): Promise<{ bytes: Uint8Array; mimeType: string } | null>;
+  /** Generic media download (voice notes). Optional so older fakes still satisfy the type. */
+  fetchMedia?(
+    mediaId: string,
+    maxBytes: number,
+    fallbackMime: string
+  ): Promise<{ bytes: Uint8Array; mimeType: string } | null>;
+  /** Upload synthesized audio, returning a media id. Optional — absence disables voice replies. */
+  uploadMedia?(bytes: Uint8Array, mimeType: string, filename: string): Promise<string | null>;
+  /** Send an uploaded audio media id as a voice note. Optional — see uploadMedia. */
+  sendAudio?(to: string, mediaId: string, isGroup?: boolean): Promise<void>;
   /** Mark read + show a "typing…" indicator (human-feel). Best-effort/no-throw. */
   markReadAndTyping?(messageId: string): Promise<void>;
 }
@@ -121,8 +136,22 @@ export function parseInboundMessages(payload: unknown): InboundCloudMessage[] {
             mimeType: m.image.mime_type || "image/jpeg",
             groupId,
           });
+        } else if ((m.type === "audio" || m.type === "voice") && m.audio?.id) {
+          // Voice notes arrive as type "audio" with voice:true. Both carry the
+          // same media id, and members send either, so accept both. `text` is
+          // filled in later from the transcript.
+          out.push({
+            waId,
+            name,
+            messageId,
+            text: "",
+            hasImage: false,
+            audioId: m.audio.id,
+            mimeType: m.audio.mime_type || "audio/ogg",
+            groupId,
+          });
         }
-        // Other types (audio, location, sticker, ...) are intentionally skipped.
+        // Other types (location, sticker, ...) are intentionally skipped.
       }
     }
   }
@@ -163,6 +192,26 @@ export async function dispatchInbound(
       }
     }
 
+    // Voice note in → transcribe before anything else, so the rest of the
+    // pipeline (persona scope, memory, policy) sees a normal text question.
+    if (m.audioId) {
+      const transcript = await transcribeInbound(m, messenger);
+      if (!transcript) {
+        // Tell the member rather than going silent — an ignored voice note is
+        // indistinguishable from a broken bot.
+        await messenger
+          .sendText(
+            m.groupId ?? m.waId,
+            "Voice note andukunnanu, kaani ardham cheskoleka poyanu 🙏 Malli try cheyyandi, leda text lo type chesi pampandi.",
+            Boolean(m.groupId)
+          )
+          .catch((err) => logger.warn({ err }, "[cloud] voice-failure notice not sent"));
+        continue;
+      }
+      m.text = transcript;
+      logger.info({ chars: transcript.length }, "[speech] voice note transcribed");
+    }
+
     const incoming: IncomingMessage = {
       userId: m.waId, // the participant (group) or the user (1:1)
       remoteJid: m.groupId ?? m.waId, // reply target: the group, or the user
@@ -173,10 +222,14 @@ export async function dispatchInbound(
       persona,
     };
 
+    // Remember what was actually said so the voice note can mirror the final
+    // answer rather than an interstitial (a consent notice, a rate-limit note).
+    const sent: string[] = [];
     const responder: Responder = {
       send: async (t: string) => {
         // Group replies go to the group id with recipient_type=group.
         await messenger.sendText(m.groupId ?? m.waId, t, Boolean(m.groupId));
+        sent.push(t);
       },
     };
 
@@ -190,7 +243,71 @@ export async function dispatchInbound(
     } catch (err) {
       logger.error({ err, messageId: m.messageId }, "[cloud] processMessage failed");
     }
+
+    // Asked in voice → answered in text AND voice. Only when the member spoke
+    // first: unsolicited audio in a text conversation is intrusive, and it
+    // doubles cost on every message. Never allowed to fail the reply.
+    if (m.audioId && sent.length > 0) {
+      await sendVoiceReply(m, messenger, sent[sent.length - 1]).catch((err) =>
+        logger.warn({ err, messageId: m.messageId }, "[speech] voice reply failed — text was sent")
+      );
+    }
   }
+}
+
+/** Voice notes are small; 20MB is generous and still bounds a hostile upload. */
+const MAX_VOICE_NOTE_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Download and transcribe an inbound voice note. Returns null on any failure —
+ * callers surface that to the member rather than replying to silence.
+ */
+async function transcribeInbound(
+  m: InboundCloudMessage,
+  messenger: CloudMessenger
+): Promise<string | null> {
+  const stt = resolveStt();
+  if (!stt || !messenger.fetchMedia) {
+    logger.warn("[speech] voice note received but transcription is not configured");
+    return null;
+  }
+  try {
+    const audio = await messenger.fetchMedia(m.audioId!, MAX_VOICE_NOTE_BYTES, "audio/ogg");
+    if (!audio) return null;
+    const text = await stt.transcribe(audio);
+    // A transcript of one or two characters is noise (a cough, a misfire), not
+    // a question — answering it produces a confusing non-sequitur.
+    return text.trim().length > 1 ? text.trim() : null;
+  } catch (err) {
+    logger.error({ err }, "[speech] transcription failed");
+    return null;
+  }
+}
+
+/**
+ * Speak a reply back: rewrite for the ear, synthesize, transcode to the exact
+ * OGG/Opus WhatsApp needs, upload, send. Every step is best-effort — the text
+ * answer has already been delivered by the time this runs.
+ */
+async function sendVoiceReply(
+  m: InboundCloudMessage,
+  messenger: CloudMessenger,
+  replyText: string
+): Promise<void> {
+  if (!config.speech.enabled) return;
+  const tts = resolveTts();
+  if (!tts || !messenger.uploadMedia || !messenger.sendAudio) return;
+
+  const spoken = await toSpokenText(replyText);
+  if (!spoken) return;
+
+  const raw = await tts.synthesize(spoken, detectLanguage(spoken));
+  const voice = await toWhatsAppVoice(raw);
+  const mediaId = await messenger.uploadMedia(voice.bytes, "audio/ogg", "reply.ogg");
+  if (!mediaId) return;
+
+  await messenger.sendAudio(m.groupId ?? m.waId, mediaId, Boolean(m.groupId));
+  logger.info({ provider: tts.name, bytes: voice.bytes.byteLength }, "[speech] voice reply sent");
 }
 
 /**

@@ -13,7 +13,12 @@ let provider: LLMProvider | null = null;
 function build(): LLMProvider {
   const llm = config.llm;
   if (llm.provider === "openai") {
-    return new OpenAIProvider(llm.openai.apiKey!, llm.openai.textModel, llm.openai.embedModel);
+    return new OpenAIProvider(
+      llm.openai.apiKey!,
+      llm.openai.textModel,
+      llm.openai.embedModel,
+      llm.openai.reasoningEffort
+    );
   }
   return new GeminiProvider(llm.gemini.apiKey!, llm.gemini.textModel, llm.gemini.embedModel);
 }

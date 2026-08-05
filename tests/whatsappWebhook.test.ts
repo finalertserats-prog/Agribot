@@ -134,7 +134,9 @@ describe("parseInboundMessages — Meta payload normalization", () => {
     expect(out).toHaveLength(0);
   });
 
-  it("skips unsupported message types (audio/location)", () => {
+  // Voice notes used to be dropped here. They are now first-class: the media id
+  // is captured and the transcript fills `text` later in dispatch.
+  it("captures a voice note's media id and mime type", () => {
     const out = parseInboundMessages({
       entry: [
         {
@@ -142,7 +144,39 @@ describe("parseInboundMessages — Meta payload normalization", () => {
             {
               value: {
                 contacts: [{ profile: { name: "X" }, wa_id: "91000" }],
-                messages: [{ from: "91000", id: "wamid.D", type: "audio", audio: { id: "A" } }],
+                messages: [
+                  {
+                    from: "91000",
+                    id: "wamid.D",
+                    type: "audio",
+                    audio: { id: "A", mime_type: "audio/ogg; codecs=opus", voice: true },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].audioId).toBe("A");
+    expect(out[0].mimeType).toContain("audio/ogg");
+    expect(out[0].text).toBe("");
+    expect(out[0].hasImage).toBe(false);
+  });
+
+  it("still skips genuinely unsupported types (location, sticker)", () => {
+    const out = parseInboundMessages({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                contacts: [{ profile: { name: "X" }, wa_id: "91000" }],
+                messages: [
+                  { from: "91000", id: "wamid.E", type: "location", location: { latitude: 1 } },
+                  { from: "91000", id: "wamid.F", type: "sticker", sticker: { id: "S" } },
+                ],
               },
             },
           ],

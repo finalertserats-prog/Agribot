@@ -73,6 +73,32 @@ describe("OpenAIProvider", () => {
     const p = new OpenAIProvider("k", "gpt-4o-mini", "text-embedding-3-small");
     expect(await p.embed("note")).toEqual([0.1, 0.2, 0.3]);
   });
+
+  // reasoning_effort is a gpt-5-family parameter. Non-reasoning models 400 on
+  // it, so an unconfigured provider must omit the KEY entirely — sending
+  // `reasoning_effort: undefined` still serializes into the request body.
+  it("omits reasoning_effort entirely when none is configured", async () => {
+    createMock.mockResolvedValue({ choices: [{ message: { content: "ok" } }] });
+    const p = new OpenAIProvider("k", "gpt-4.1", "text-embedding-3-small");
+    await p.generateText("hi");
+    expect(createMock.mock.calls[0][0]).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("sends the configured reasoning effort on text generation", async () => {
+    createMock.mockResolvedValue({ choices: [{ message: { content: "ok" } }] });
+    const p = new OpenAIProvider("k", "gpt-5", "text-embedding-3-small", "low");
+    await p.generateText("hi");
+    expect(createMock.mock.calls[0][0].reasoning_effort).toBe("low");
+  });
+
+  // Photos of diseased leaves are the highest-value question CTG members ask —
+  // vision must get the same reasoning depth as text, not silently less.
+  it("sends the configured reasoning effort on image analysis too", async () => {
+    createMock.mockResolvedValue({ choices: [{ message: { content: "leaf miner" } }] });
+    const p = new OpenAIProvider("k", "gpt-5", "text-embedding-3-small", "low");
+    await p.analyzeImage("sys", new Uint8Array([1]), "image/jpeg", "what is this");
+    expect(createMock.mock.calls[0][0].reasoning_effort).toBe("low");
+  });
 });
 
 // ---- GeminiProvider (mock the Google SDK) ----
