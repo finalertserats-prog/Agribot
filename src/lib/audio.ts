@@ -17,6 +17,9 @@ const MAX_OUTPUT_BYTES = 12 * 1024 * 1024;
 /** A stuck ffmpeg must not pin a request open forever. */
 const TRANSCODE_TIMEOUT_MS = 30_000;
 
+/** ffmpeg can warn per-frame; we only ever surface the first slice of it. */
+const MAX_STDERR_CHARS = 8 * 1024;
+
 export class FfmpegMissingError extends Error {
   constructor() {
     super("ffmpeg not found on PATH — voice replies need it to produce OGG/Opus");
@@ -63,18 +66,43 @@ export async function toWhatsAppVoice(input: AudioBytes): Promise<AudioBytes> {
       fn();
     };
 
-    const timer = setTimeout(() => {
+    // Tear the child down completely rather than only signalling it: if kill()
+    // fails or the process is wedged, the pipes keep buffered chunks (and the
+    // listeners holding them) alive for the life of the process.
+    const destroy = () => {
       proc.kill("SIGKILL");
+      proc.stdin.destroy();
+      proc.stdout.destroy();
+      proc.stderr.destroy();
+    };
+
+    const timer = setTimeout(() => {
+      destroy();
       finish(() => reject(new Error("ffmpeg timed out transcoding voice reply")));
     }, TRANSCODE_TIMEOUT_MS);
 
     proc.on("error", (err: NodeJS.ErrnoException) => {
       finish(() => reject(err.code === "ENOENT" ? new FfmpegMissingError() : err));
     });
+    // Cap stderr: ffmpeg can emit warnings per frame, and we only ever surface
+    // the first couple of hundred characters in an error message.
     proc.stderr.on("data", (d) => {
-      stderr += String(d);
+      if (stderr.length < MAX_STDERR_CHARS) stderr += String(d);
     });
-    proc.stdout.on("data", (d: Buffer) => chunks.push(d));
+
+    // Enforce the size limit AS BYTES ARRIVE, not after buffering everything.
+    // Checking only on close means a malformed input that makes ffmpeg emit
+    // gigabytes is held entirely in memory before we notice it was too big.
+    let outBytes = 0;
+    proc.stdout.on("data", (d: Buffer) => {
+      outBytes += d.byteLength;
+      if (outBytes > MAX_OUTPUT_BYTES) {
+        destroy();
+        finish(() => reject(new Error(`voice reply exceeded ${MAX_OUTPUT_BYTES} bytes — aborted`)));
+        return;
+      }
+      chunks.push(d);
+    });
 
     proc.on("close", (code) => {
       finish(() => {
@@ -83,6 +111,7 @@ export async function toWhatsAppVoice(input: AudioBytes): Promise<AudioBytes> {
         }
         const out = Buffer.concat(chunks);
         if (out.byteLength === 0) return reject(new Error("ffmpeg produced no audio"));
+        // Backstop only — the streaming guard above normally fires first.
         if (out.byteLength > MAX_OUTPUT_BYTES) {
           return reject(new Error(`voice reply too large (${out.byteLength} bytes)`));
         }

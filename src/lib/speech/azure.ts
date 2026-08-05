@@ -21,6 +21,9 @@ const VOICE: Record<SpokenLanguage, string> = {
  */
 const OUTPUT_FORMAT = "ogg-48khz-16bit-mono-opus";
 
+/** A hung vendor call must not pin a voice-reply task open indefinitely. */
+const REQUEST_TIMEOUT_MS = 45_000;
+
 /** XML-escape text before it goes into SSML, or an "&" in a reply breaks the request. */
 function escapeSsml(text: string): string {
   return text
@@ -53,6 +56,7 @@ export class AzureTtsProvider implements TtsProvider {
     const res = await this.fetchFn(
       `https://${this.region}.tts.speech.microsoft.com/cognitiveservices/v1`,
       {
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         method: "POST",
         headers: {
           "Ocp-Apim-Subscription-Key": this.apiKey,

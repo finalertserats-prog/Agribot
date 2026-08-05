@@ -21,6 +21,16 @@ const DEFAULT_SPEAKER = "shubh";
  */
 export const SARVAM_MAX_CHARS = 2500;
 
+/** A hung vendor call must not pin a voice-reply task open indefinitely. */
+const REQUEST_TIMEOUT_MS = 45_000;
+
+/**
+ * Refuse absurd payloads before base64-decoding them. A changed or hostile
+ * vendor response could otherwise allocate hundreds of MB before ffmpeg's own
+ * limit ever gets a chance to apply.
+ */
+const MAX_BASE64_CHARS = 30 * 1024 * 1024;
+
 export class SarvamTtsProvider implements TtsProvider {
   readonly name = "sarvam";
   private readonly apiKey: string;
@@ -48,6 +58,7 @@ export class SarvamTtsProvider implements TtsProvider {
     }
 
     const res = await this.fetchFn(ENDPOINT, {
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       method: "POST",
       headers: {
         "api-subscription-key": this.apiKey,
@@ -77,9 +88,17 @@ export class SarvamTtsProvider implements TtsProvider {
     // Response is { audios: [base64, ...] } — chunks must be joined BEFORE
     // decoding. Decoding each chunk separately and concatenating the bytes
     // corrupts the file whenever a chunk boundary isn't a multiple of 3 bytes.
-    const body = (await res.json()) as { audios?: string[] };
-    const joined = (body.audios || []).join("");
+    const body = (await res.json()) as { audios?: unknown };
+    // Validate the shape rather than trusting it — a vendor schema change
+    // should surface as a clear error, not a corrupt buffer sent to a member.
+    if (!Array.isArray(body.audios) || body.audios.some((a) => typeof a !== "string")) {
+      throw new Error("Sarvam TTS returned an unexpected response shape");
+    }
+    const joined = (body.audios as string[]).join("");
     if (!joined) throw new Error("Sarvam TTS returned no audio");
+    if (joined.length > MAX_BASE64_CHARS) {
+      throw new Error(`Sarvam TTS returned an implausibly large payload (${joined.length} chars)`);
+    }
 
     return { bytes: new Uint8Array(Buffer.from(joined, "base64")), mimeType: "audio/wav" };
   }

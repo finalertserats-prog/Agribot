@@ -236,12 +236,29 @@ export async function dispatchInbound(
     // Human touch (1:1): mark the message read (blue ticks) + show "typing…"
     // while CTG Admn thinks. Best-effort — fired-and-forgotten so it never
     // delays or blocks the actual reply.
-    if (!m.groupId) void messenger.markReadAndTyping?.(m.messageId);
+    // .catch() rather than bare `void`: a rejecting implementation would
+    // otherwise surface as an unhandled rejection and take the process down.
+    if (!m.groupId) {
+      messenger
+        .markReadAndTyping?.(m.messageId)
+        .catch((err) => logger.debug({ err }, "[cloud] markReadAndTyping failed"));
+    }
 
     try {
       await processMessage(incoming, responder);
     } catch (err) {
       logger.error({ err, messageId: m.messageId }, "[cloud] processMessage failed");
+      // If it threw BEFORE anything was sent, the member is staring at silence
+      // and cannot tell a crash from a slow answer. Say something.
+      if (sent.length === 0) {
+        await messenger
+          .sendText(
+            m.groupId ?? m.waId,
+            "Kshaminchandi 🙏 oka technical problem vachindi. Konchem sepu tarvata malli try cheyyandi.",
+            Boolean(m.groupId)
+          )
+          .catch((e) => logger.warn({ err: e }, "[cloud] failure notice not sent either"));
+      }
     }
 
     // Asked in voice → answered in text AND voice. Only when the member spoke
