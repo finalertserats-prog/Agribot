@@ -1,7 +1,7 @@
 {
   "name": "agrifriend-bot",
   "version": "1.0.0",
-  "description": "AgriFriend — WhatsApp AI Farming Consultant",
+  "description": "AgriFriend \u2014 WhatsApp AI Farming Consultant",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "regression": "node tests/regression/run.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

@@ -1,0 +1,107 @@
+{
+  "_comment": "Real CTG member questions the bot has answered badly, turned into checks. Every case here traces to a dated conversation in the interactions table — do not invent cases, harvest them. Add one whenever a member catches a wrong answer.",
+  "cases": [
+    {
+      "id": "hrmn99-identity",
+      "source": "918926522222 @ 2026-08-05T16:01Z",
+      "why": "gpt-4o-mini called HRMN-99 temperate-bred needing 700-1000 chill hours — the inverse of its defining low-chill trait — then built advice on that premise.",
+      "history": [],
+      "question": "What I am asking is about a variety in Apple HRMN99 developed by Hariman Sharma from Himachal pradesh. Can I grow it on my Hyderabad rooftop?",
+      "mustMentionAny": [
+        "low-chill",
+        "low chill",
+        "chilling",
+        "chill"
+      ],
+      "mustNotMatch": [
+        "(?i)requires?\\s+(a\\s+)?chill(ing)?\\s+(period\\s+)?(of\\s+)?.{0,20}\\b[3-9]\\d{2}\\s*(to|-|–)\\s*1?,?\\d{3}\\s*hours",
+        "(?i)\\btemperate[- ]bred\\b",
+        "(?i)mustard|nasturtium"
+      ],
+      "mustMentionAll": [
+        "Hyderabad"
+      ],
+      "rubric": [
+        "Treats HRMN-99 as a LOW-CHILL apple selection (or explicitly says its chill requirement is not well documented). Claiming it is a temperate/high-chill variety needing several hundred to a thousand chill hours is WRONG.",
+        "Does NOT invent an expansion of the acronym 'HRMN' or attribute it to the wrong person. Hariman Sharma of Himachal Pradesh is correct.",
+        "Gives a clear, honest verdict on Hyderabad rooftop viability rather than an unqualified encouraging 'yes'."
+      ]
+    },
+    {
+      "id": "hrmn-context-carry",
+      "source": "918926522222 @ 2026-08-05T15:53Z",
+      "why": "Mid-apple thread, the bot invented an acronym expansion ('High Yielding Ratooning Mustard/Nasturtium') and answered about a different crop entirely. Tests that conversation context survives an ambiguous follow-up.",
+      "history": [
+        {
+          "role": "user",
+          "content": "What information can you provide about growing apple trees at Hyderabad on rooftops"
+        },
+        {
+          "role": "assistant",
+          "content": "For Hyderabad choose low-chill varieties like Anna or Dorsett Golden, 18-24 inch deep containers, and a well-draining mix."
+        }
+      ],
+      "question": "How about HRMN variety ?",
+      "mustMentionAny": [
+        "apple",
+        "HRMN-99",
+        "HRMN99"
+      ],
+      "mustNotMatch": [
+        "(?i)mustard",
+        "(?i)nasturtium",
+        "(?i)ratooning"
+      ],
+      "rubric": [
+        "Understands the question is about the APPLE variety HRMN-99, continuing the apple conversation.",
+        "Does NOT invent an expansion of the acronym 'HRMN' (e.g. 'Himachal Research Minikit', 'High Yielding Ratooning Mustard'). Inventing any expansion is an automatic violation.",
+        "If unsure which cultivar is meant, asks or states the uncertainty instead of guessing."
+      ]
+    },
+    {
+      "id": "specificity-complaint",
+      "source": "918926522222 @ 2026-08-05T16:02Z",
+      "why": "A member complained the answers were too generic; the bot replied with pure filler ('I'm ready to help! What would you like to discuss today?'), proving the complaint. A complaint must be answered with substance.",
+      "history": [],
+      "question": "I want you to be specific on Queries related to Gardening/terrace gardening/roof top gardening/balcony gardening/front yard or back yard gardening and agriculture related",
+      "mustNotMatch": [
+        "(?i)what would you like to (discuss|know|ask)",
+        "(?i)i'?m (here|ready) to (help|provide)",
+        "(?i)just let me know"
+      ],
+      "minWords": 40,
+      "rubric": [
+        "Responds with actual horticultural substance, not a filler offer to help.",
+        "Does not simply ask the member what they would like to discuss without contributing anything."
+      ]
+    },
+    {
+      "id": "gourd-grafting-depth",
+      "source": "918926522222 @ 2026-07-26T13:00Z",
+      "why": "An experienced grower asked about grafted gourds for maximum yield and got beginner advice (buy healthy seedlings, use a 14-inch pot). Expert questions need rootstock names and technique, not fundamentals.",
+      "history": [],
+      "question": "We want to grow grafted vegetables in bitter gourd and bottle gourd for maximum yields on a Hyderabad terrace. Please guide me on rootstock choice and grafting method.",
+      "mustMentionAny": [
+        "Cucurbita",
+        "figleaf",
+        "Lagenaria",
+        "bottle gourd rootstock",
+        "Benincasa",
+        "pumpkin rootstock"
+      ],
+      "mustMentionAny2": [
+        "cleft",
+        "tongue approach",
+        "hole insertion",
+        "splice",
+        "one cotyledon"
+      ],
+      "minWords": 60,
+      "rubric": [
+        "Names specific rootstock species or cultivars used for cucurbit grafting.",
+        "Describes an actual grafting technique by name.",
+        "Pitches at an experienced grower, not a beginner. Generic 'buy healthy seedlings / use a big pot' advice is a violation."
+      ]
+    }
+  ]
+}
