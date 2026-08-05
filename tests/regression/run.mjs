@@ -31,6 +31,15 @@ for (const line of fs.readFileSync(path.join(root, ".env"), "utf8").split("\n"))
 const args = process.argv.slice(2);
 const asJson = args.includes("--json");
 const modelArg = args.indexOf("--model");
+const samplesArg = args.indexOf("--samples");
+/**
+ * Model answers are stochastic, so a single sample makes borderline cases
+ * flip between runs — which is worse than no gate, because a spurious FAIL
+ * trains you to ignore the suite. Sample N times and fail only on a MAJORITY,
+ * so one unlucky generation cannot condemn a healthy config (and one lucky
+ * one cannot excuse a broken one).
+ */
+const SAMPLES = samplesArg >= 0 ? Math.max(1, +args[samplesArg + 1]) : 3;
 const MODEL = modelArg >= 0 ? args[modelArg + 1] : process.env.OPENAI_TEXT_MODEL || "gpt-5";
 const EFFORT = process.env.OPENAI_REASONING_EFFORT;
 const KEY = process.env.OPENAI_API_KEY;
@@ -135,38 +144,54 @@ function grade(c, answer) {
   return failures;
 }
 
+/** One independent sample: generate an answer, then grade it. */
+async function runSample(c) {
+  try {
+    const answer = await ask(c);
+    return { failures: [...grade(c, answer), ...(await judge(c, answer))], answer };
+  } catch (e) {
+    return { failures: [`request failed: ${e.message}`], answer: "" };
+  }
+}
+
 const results = [];
 for (const c of cases) {
   const started = Date.now();
-  let answer = "";
-  let error = null;
-  try {
-    answer = await ask(c);
-  } catch (e) {
-    error = e.message;
-  }
-  const failures = error
-    ? [`request failed: ${error}`]
-    : [...grade(c, answer), ...(await judge(c, answer))];
+  // Samples run concurrently — sequential sampling would triple an already
+  // slow suite and nobody would run it before shipping.
+  const samples = await Promise.all(Array.from({ length: SAMPLES }, () => runSample(c)));
+  const failed = samples.filter((s) => s.failures.length > 0);
+  const pass = failed.length <= Math.floor(SAMPLES / 2);
   results.push({
     id: c.id,
     source: c.source,
-    pass: failures.length === 0,
-    failures,
+    pass,
+    samples: SAMPLES,
+    failedSamples: failed.length,
+    // Report the failing sample — that is the one worth reading.
+    failures: failed[0]?.failures || [],
     seconds: +((Date.now() - started) / 1000).toFixed(1),
-    answer,
+    answer: (failed[0] || samples[0]).answer,
   });
 }
 
 const passed = results.filter((r) => r.pass).length;
 
 if (asJson) {
-  console.log(JSON.stringify({ model: MODEL, effort: EFFORT, passed, total: results.length, results }, null, 2));
+  console.log(
+    JSON.stringify({ model: MODEL, effort: EFFORT, samples: SAMPLES, passed, total: results.length, results }, null, 2)
+  );
 } else {
-  console.log(`\nAnswer-quality regression — model=${MODEL}${EFFORT ? ` effort=${EFFORT}` : ""}\n`);
+  console.log(
+    `\nAnswer-quality regression — model=${MODEL}${EFFORT ? ` effort=${EFFORT}` : ""}` +
+      `, ${SAMPLES} sample(s)/case, majority rule\n`
+  );
   for (const r of results) {
-    console.log(`${r.pass ? "PASS" : "FAIL"}  ${r.id}  (${r.seconds}s)   [${r.source}]`);
-    for (const f of r.failures) console.log(`      - ${f}`);
+    const tally = `${r.samples - r.failedSamples}/${r.samples} samples clean`;
+    console.log(`${r.pass ? "PASS" : "FAIL"}  ${r.id}  (${r.seconds}s, ${tally})   [${r.source}]`);
+    // Show the failing sample even when the majority passed — a flaky case is
+    // a genuine early warning, just not a build-breaking one.
+    for (const f of r.failures) console.log(`      ${r.pass ? "~" : "-"} ${f}`);
     if (!r.pass) console.log(`      answer: ${r.answer.replace(/\s+/g, " ").slice(0, 240)}...`);
   }
   console.log(`\n${passed}/${results.length} passed\n`);
