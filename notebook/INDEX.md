@@ -3,6 +3,16 @@
 Master map of project knowledge. Load this first at session start.
 
 ## Sessions
+- [2026-08-05 — Voice notes, the answer-depth root cause, and a regression suite](sessions/2026-08-05-voice-notes-answer-depth-regression-suite.md)
+  — shallow/WRONG answers traced to the silent `gpt-4o-mini` default, not the persona (it called
+  low-chill HRMN-99 a temperate 700–1000-chill-hour variety, and invented two different "HRMN"
+  acronym expansions); now `gpt-5` + `OPENAI_REASONING_EFFORT=low`. Shipped voice notes in AND
+  out (STT → reply → spoken rewrite into Telugu SCRIPT → TTS → OGG/Opus → upload). Codex review
+  caught 5 real bugs in the shipped voice code. Built an answer-quality regression suite
+  harvested from real member failures (`npm run regression`, 3 samples, majority rule) — the
+  first keyword-only version was worthless because it passed the known-bad model 4/4.
+  DECIDED: correctness outranks latency/cost (answers now 15–30s) — do not re-raise.
+  Pending: `SARVAM_API_KEY` for a real Telugu voice; shared-knowledge RETRIEVAL half.
 - [2026-07-27 — wweb QR link, the status@broadcast send bug, and the expert-depth persona](sessions/2026-07-27-wweb-qr-link-status-bug-expert-persona.md)
   — QR-linked 7013356256 (blank `BAILEYS_PAIRING_NUMBER` ⇒ QR, not pairing code); found the
   "every send throws" bug was OUR code replying into `status@broadcast`, not a stale library;
