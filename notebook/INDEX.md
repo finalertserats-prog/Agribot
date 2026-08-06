@@ -19,7 +19,15 @@ Master map of project knowledge. Load this first at session start.
   Then (`8eb888f`) declared `whatsapp-web.js` with the lockfile copied FROM the running VPS so
   `npm ci` reproduces the proven tree (verified by dry-run: adds wweb+puppeteer, 0 removals),
   and rewrote DEPLOY.md around the pipeline-exit-code trap.
-  Pending: **top up Sarvam credits**; re-scan the group QR.
+  Key was then ROTATED by the user — the new one has credits, so **Telugu voice is LIVE**; the
+  old key is kept as `SARVAM_API_KEY_BACKUP` (still zero credits = placeholder, not redundancy).
+  Proved the fixes live by uploading a real voice note to Meta and POSTing a signed webhook:
+  same question that vanished at 12:55 came back answered + spoken (`id 79 delivered=0` →
+  `id 82 delivered=1`), and a 7,736-char answer **chunked into 3 messages** in production.
+  Voice picked BY EAR from six candidates → **`anand`** (vendor documents no tone/gender).
+  Also fixed: Sarvam was returning 24 kHz and being upsampled, and `enable_preprocessing` was
+  being sent to v3 which ignores it.
+  Pending: **top up the BACKUP Sarvam account** for real redundancy; re-scan the group QR.
 - [2026-08-05 — Voice notes, the answer-depth root cause, and a regression suite](sessions/2026-08-05-voice-notes-answer-depth-regression-suite.md)
   — shallow/WRONG answers traced to the silent `gpt-4o-mini` default, not the persona (it called
   low-chill HRMN-99 a temperate 700–1000-chill-hour variety, and invented two different "HRMN"
