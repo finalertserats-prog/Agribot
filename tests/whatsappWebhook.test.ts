@@ -6,6 +6,14 @@ vi.mock("../src/core/reply", () => ({
   processMessage: vi.fn(async () => {}),
 }));
 
+// Speech providers are resolved lazily from env; stub them so voice-path tests
+// exercise the webhook's own decisions rather than a vendor.
+const sttMock = { name: "test-stt", transcribe: vi.fn() };
+vi.mock("../src/lib/speech", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return { ...actual, resolveStt: () => sttMock, resolveTts: () => null };
+});
+
 import {
   verifyWebhook,
   isValidSignature,
@@ -261,6 +269,28 @@ describe("dispatchInbound — routing to the core", () => {
     expect(m.sendText).toHaveBeenCalledWith("91999", "reply text", false); // 1:1 => not a group
   });
 
+  // The exact hole that lost interaction 79: the send failed, processMessage
+  // swallowed it, and the member was left with nothing at all. A failed send
+  // must still produce *something* addressed to the member.
+  it("tells the member something went wrong when the reply could not be sent", async () => {
+    const m = messenger();
+    (m.sendText as any).mockRejectedValueOnce(new Error("WhatsApp Cloud sendText failed: 400"));
+    (processMessage as any).mockImplementationOnce(async (_msg: any, res: any) => {
+      await res.send("a very long answer that the transport rejects");
+    });
+
+    await dispatchInbound(
+      [{ waId: "91999", name: "Ravi", messageId: "wamid.FAIL", text: "hi", hasImage: false }],
+      m,
+      new SeenCache(100)
+    );
+
+    expect(m.sendText).toHaveBeenCalledTimes(2);
+    const [to, body] = (m.sendText as any).mock.calls[1];
+    expect(to).toBe("91999");
+    expect(body).toMatch(/Kshaminchandi/);
+  });
+
   it("routes an official GROUP message to the group and replies with recipient_type=group", async () => {
     const m = messenger();
     (processMessage as any).mockImplementationOnce(async (_msg: any, res: any) => {
@@ -301,5 +331,54 @@ describe("dispatchInbound — routing to the core", () => {
       new SeenCache(100)
     );
     expect(m.sendText).not.toHaveBeenCalled();
+  });
+});
+
+describe("voice notes — never answer a transcript we did not understand", () => {
+  function voiceMessenger(): CloudMessenger {
+    return {
+      sendText: vi.fn(async () => {}),
+      fetchImage: vi.fn(async () => ({ bytes: new Uint8Array([1]), mimeType: "image/jpeg" })),
+      fetchMedia: vi.fn(async () => ({ bytes: new Uint8Array([1, 2]), mimeType: "audio/ogg" })),
+      markReadAndTyping: vi.fn(async () => {}),
+    } as CloudMessenger;
+  }
+  const voiceNote = {
+    waId: "91999",
+    name: "Ravi",
+    messageId: "wamid.V",
+    text: "",
+    hasImage: false,
+    audioId: "AUDIO1",
+  };
+
+  it("answers a confidently transcribed voice note", async () => {
+    sttMock.transcribe.mockResolvedValueOnce({ text: "tomato lo leaf miner", confidence: -0.2 });
+    await dispatchInbound([{ ...voiceNote }], voiceMessenger(), new SeenCache(100));
+    expect(processMessage).toHaveBeenCalledOnce();
+    expect((processMessage as any).mock.calls[0][0].text).toBe("tomato lo leaf miner");
+  });
+
+  // The real failure: "Hello, kura gelela banding cadi" was answered with 3500
+  // chars about the wrong crop. Asking beats guessing.
+  it("asks the member to repeat instead of answering a low-confidence transcript", async () => {
+    const m = voiceMessenger();
+    sttMock.transcribe.mockResolvedValueOnce({
+      text: "Hello, kura gelela banding cadi.",
+      confidence: -1.8,
+    });
+    await dispatchInbound([{ ...voiceNote }], m, new SeenCache(100));
+
+    expect(processMessage).not.toHaveBeenCalled();
+    expect(m.sendText).toHaveBeenCalledOnce();
+    expect((m.sendText as any).mock.calls[0][1]).toMatch(/ardham cheskoleka/);
+  });
+
+  // A vendor that reports no confidence must not be read as zero confidence,
+  // or every Sarvam transcript would be rejected.
+  it("trusts a transcript from a vendor that reports no confidence at all", async () => {
+    sttMock.transcribe.mockResolvedValueOnce({ text: "kura mokkalu ela pencali" });
+    await dispatchInbound([{ ...voiceNote }], voiceMessenger(), new SeenCache(100));
+    expect(processMessage).toHaveBeenCalledOnce();
   });
 });

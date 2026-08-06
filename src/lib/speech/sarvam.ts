@@ -1,5 +1,12 @@
 import { logger } from "../logger";
-import { LOCALE, type AudioBytes, type SpokenLanguage, type TtsProvider } from "./types";
+import {
+  LOCALE,
+  type AudioBytes,
+  type SpokenLanguage,
+  type SttProvider,
+  type Transcript,
+  type TtsProvider,
+} from "./types";
 
 /**
  * Sarvam AI TTS (bulbul). The best fit for CTG: its TTS is documented to accept
@@ -101,5 +108,83 @@ export class SarvamTtsProvider implements TtsProvider {
     }
 
     return { bytes: new Uint8Array(Buffer.from(joined, "base64")), mimeType: "audio/wav" };
+  }
+}
+
+/**
+ * Sarvam AI STT (saaras). Preferred over gpt-4o-transcribe for CTG because the
+ * members speak code-mixed Telugu-English, which is what this model is trained
+ * for — a real voice note came back from a general-purpose engine as "Hello,
+ * kura gelela banding cadi" and earned a long answer about the wrong crop.
+ */
+
+const STT_ENDPOINT = "https://api.sarvam.ai/speech-to-text";
+
+/** saaras:v3 is the version that exposes `mode`, including code-mixed input. */
+const DEFAULT_STT_MODEL = "saaras:v3";
+
+/**
+ * `codemix` keeps English horticultural terms as English inside a Telugu
+ * sentence instead of transliterating them into Telugu script — "leaf miner"
+ * must survive as "leaf miner". Only saaras:v3 accepts `mode`; sending it to v4
+ * is a 400, so it is attached conditionally.
+ */
+const CODEMIX_MODE = "codemix";
+const MODE_CAPABLE_MODEL = /^saaras:v3/;
+
+export class SarvamSttProvider implements SttProvider {
+  readonly name = "sarvam";
+  private readonly apiKey: string;
+  private readonly model: string;
+  private readonly fetchFn: typeof fetch;
+
+  constructor(apiKey: string, opts: { model?: string; fetchFn?: typeof fetch } = {}) {
+    this.apiKey = apiKey;
+    this.model = opts.model || DEFAULT_STT_MODEL;
+    this.fetchFn = opts.fetchFn || fetch;
+  }
+
+  async transcribe(audio: AudioBytes, languageHint?: string): Promise<Transcript> {
+    const form = new FormData();
+    // WhatsApp voice notes are OGG/Opus; the filename extension is what most
+    // multipart endpoints sniff the container from.
+    form.append("file", new Blob([audio.bytes], { type: audio.mimeType }), "voice.ogg");
+    form.append("model", this.model);
+    if (MODE_CAPABLE_MODEL.test(this.model)) form.append("mode", CODEMIX_MODE);
+    // Omitted rather than forced when absent: Sarvam auto-detects, and forcing
+    // te-IN on a member who spoke English yields confident nonsense.
+    if (languageHint) form.append("language_code", languageHint);
+
+    const res = await this.fetchFn(STT_ENDPOINT, {
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      method: "POST",
+      // No Content-Type header — fetch must set it to include the multipart
+      // boundary, and overriding it here silently breaks the upload.
+      headers: { "api-subscription-key": this.apiKey },
+      body: form,
+    });
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`Sarvam STT failed (${res.status}): ${detail.slice(0, 200)}`);
+    }
+
+    const body = (await res.json()) as { transcript?: unknown; language_probability?: unknown };
+    if (typeof body.transcript !== "string") {
+      throw new Error("Sarvam STT returned an unexpected response shape");
+    }
+    if (typeof body.language_probability === "number" && body.language_probability < 0.5) {
+      logger.debug(
+        { languageProbability: body.language_probability },
+        "[speech] Sarvam was unsure which language was spoken"
+      );
+    }
+
+    // Deliberately no `confidence`: Sarvam reports `language_probability`, which
+    // scores which LANGUAGE was detected, not how well the words were heard.
+    // Feeding a 0-1 probability to a threshold expressed in log-probabilities
+    // would compare two different scales and always pass. No signal is the
+    // honest answer, and callers treat that as "trust the text".
+    return { text: body.transcript.trim() };
   }
 }

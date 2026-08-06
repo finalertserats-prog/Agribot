@@ -39,6 +39,30 @@ describe("WhatsAppCloudClient.sendText", () => {
     });
   });
 
+  // Regression: a 5252-char answer was rejected whole (400, "at most 4096
+  // characters") and the member received nothing. Long replies must arrive as
+  // several messages rather than none.
+  it("splits an over-long reply into several in-order messages", async () => {
+    const client = new WhatsAppCloudClient(CFG, { fetchFn: fetchMock as any });
+    const long = Array.from({ length: 200 }, (_, i) => `Line ${i}: neem cake 50 g per pot.`).join(
+      "\n"
+    );
+    expect(long.length).toBeGreaterThan(4096);
+
+    await client.sendText("919812345678", long);
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+    const bodies = fetchMock.mock.calls.map((c: any) => JSON.parse(c[1].body).text.body);
+    for (const b of bodies) expect(b.length).toBeLessThanOrEqual(4096);
+    expect(bodies.join("\n")).toBe(long);
+  });
+
+  it("sends a normal-length reply as exactly one message", async () => {
+    const client = new WhatsAppCloudClient(CFG, { fetchFn: fetchMock as any });
+    await client.sendText("919812345678", "Neem oil 5 ml per litre, dusk lo spray cheyyandi.");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("throws on a non-2xx response so callers can log/handle it", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
@@ -103,5 +127,15 @@ describe("WhatsAppCloudClient.fetchImage", () => {
     const fetchMock = vi.fn(async () => ({ ok: false, status: 404, text: async () => "not found" }));
     const client = new WhatsAppCloudClient(CFG, { fetchFn: fetchMock as any });
     expect(await client.fetchImage("MISSING")).toBeNull();
+  });
+});
+
+describe("WhatsAppCloudClient.sendText — empty replies", () => {
+  // Silently sending nothing is how a broken reply looks like a working one.
+  it("throws rather than silently sending nothing", async () => {
+    const fetchMock = vi.fn(async () => okJson({ messages: [{ id: "x" }] }));
+    const client = new WhatsAppCloudClient(CFG, { fetchFn: fetchMock as any });
+    await expect(client.sendText("919", "   ")).rejects.toThrow(/empty/i);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

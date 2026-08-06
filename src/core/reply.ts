@@ -6,6 +6,7 @@ import {
   getUser,
   updateUserProfile,
   saveInteraction,
+  markInteractionDelivered,
   getRecentInteractions,
   isOptedOut,
   setOptOut,
@@ -95,24 +96,47 @@ function trackBackground(task: Promise<void>): void {
     .finally(() => backgroundTasks.delete(task));
 }
 
-/** Runs after replying — non-critical persistence/enrichment, never blocks the reply. */
-async function persistAndEnrich(
+/**
+ * Write the turn and hand back its row id. Synchronous on purpose, and kept
+ * separate from `enrich` below: the id has to be in hand before the send so a
+ * success can be recorded the instant it happens. Chaining that off the slow
+ * enrichment (which makes an LLM call) would leave a delivered reply marked
+ * undelivered whenever the process restarted in between — the delivery ledger
+ * exists to be trustworthy, so it must not depend on background work finishing.
+ *
+ * Returns 0 when nothing was stored; callers treat that as "nothing to mark".
+ */
+function recordInteraction(
   senderJid: string,
   remoteJid: string,
   pushName: string,
   text: string,
   response: string,
   hasImage: boolean
-): Promise<void> {
+): number {
   // If this farmer issued DELETE while this (older) message was still being
   // processed, don't re-create the data we just erased.
-  if (wasRecentlyErased(senderJid)) return;
-
+  if (wasRecentlyErased(senderJid)) return 0;
   try {
-    saveInteraction(senderJid, remoteJid, pushName, text || "[image]", response, hasImage);
+    return saveInteraction(senderJid, remoteJid, pushName, text || "[image]", response, hasImage);
   } catch (err) {
     logger.error({ err }, "saveInteraction failed (non-critical)");
+    return 0;
   }
+}
+
+/**
+ * Slow, non-critical enrichment — vector memory and opportunistic profile
+ * extraction. Runs in the background and never blocks or fails the reply.
+ */
+async function enrich(
+  senderJid: string,
+  remoteJid: string,
+  pushName: string,
+  text: string,
+  response: string
+): Promise<void> {
+  if (wasRecentlyErased(senderJid)) return;
 
   try {
     const memText = `User ${pushName}: ${text || "[shared a plant image]"} | Assistant: ${response}`;
@@ -257,10 +281,15 @@ export async function processMessage(msg: IncomingMessage, res: Responder): Prom
   const contextParts: string[] = [];
 
   if (recent.length > 0) {
-    const history = recent
+    // Oldest → newest. getRecentInteractions returns newest-first (it's a "last
+    // N" query), but a conversation reads forwards: handing the model a
+    // reversed thread makes "what did I just ask them?" the hardest thing in
+    // the context to see, which is exactly what continuity depends on.
+    const history = [...recent]
+      .reverse()
       .map((r) => `User said: "${r.message}" | You replied: "${r.response}"`)
       .join("\n");
-    contextParts.push(`Recent conversation history:\n${history}`);
+    contextParts.push(`Recent conversation history (oldest first):\n${history}`);
   }
 
   try {
@@ -312,10 +341,14 @@ export async function processMessage(msg: IncomingMessage, res: Responder): Prom
     response = "I'm having trouble processing that right now. Please try again in a moment. 🌱";
   }
 
-  // Start persistence BEFORE sending so a transient send failure can't cost us
-  // the interaction/memory/profile. It's tracked so shutdown can drain it.
-  // (persistAndEnrich itself skips writes if the user was just erased.)
-  trackBackground(persistAndEnrich(userId, remoteJid, pushName, text, response, hasImage));
+  // Persist BEFORE sending so a transient send failure can't cost us the
+  // interaction. The row lands as NOT delivered; a successful send promotes it
+  // below, so a dropped reply stays visibly dropped instead of reading as a
+  // clean answer. (Both helpers skip writes if the user was just erased.)
+  const interactionId = recordInteraction(userId, remoteJid, pushName, text, response, hasImage);
+  // Memory + profile enrichment is slow and non-critical — background it, and
+  // track it so shutdown can drain it.
+  trackBackground(enrich(userId, remoteJid, pushName, text, response));
 
   // Compliance re-check: a DELETE or STOP may have arrived WHILE this (older)
   // message was still generating. Sending now would deliver a reply after the
@@ -327,8 +360,17 @@ export async function processMessage(msg: IncomingMessage, res: Responder): Prom
 
   try {
     await res.send(response);
+    // Confirmed out the door. Synchronous and immediate — the row id is already
+    // in hand, so nothing about this depends on background work completing.
+    if (interactionId) markInteractionDelivered(interactionId);
   } catch (err) {
     logger.error({ err }, "Failed to send WhatsApp reply");
+    // Rethrow. Swallowing this here is what turned a rejected 5252-char answer
+    // into total silence for the member (2026-08-06): the transport's "say
+    // something rather than leave them staring at nothing" fallback keys off a
+    // thrown error, so catching it here disabled the only safety net. Every
+    // caller already wraps this in its own try/catch, so the process is safe.
+    throw err;
   }
 }
 

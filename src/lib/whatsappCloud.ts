@@ -1,4 +1,5 @@
 import { logger } from "./logger";
+import { splitForWhatsApp } from "./textChunk";
 import type { CloudConfig } from "../config";
 import type { CloudMessenger } from "../web/whatsappWebhook";
 
@@ -39,6 +40,25 @@ export class WhatsAppCloudClient implements CloudMessenger {
    * how the reactive bot is used. Outbound-outside-window needs a template.
    */
   async sendText(to: string, text: string, isGroup = false): Promise<void> {
+    // Meta rejects a body over 4096 chars with a 400 — the whole message, not
+    // just the tail. Split here rather than at a caller: this is the only layer
+    // that knows the cap, and every path to it (reply, autonomy, ops) inherits
+    // the protection. Sequential, so the parts land in order.
+    const parts = splitForWhatsApp(text);
+    // An empty body is a 400 of its own, so it is dropped rather than sent —
+    // but dropping it silently would make "we replied with nothing" look like a
+    // successful reply, which is the exact class of bug this change exists to
+    // kill. Throw so the caller's failure path runs and the member hears back.
+    if (parts.length === 0) {
+      logger.error({ to }, "[cloud] refusing to send an empty reply");
+      throw new Error("WhatsApp Cloud sendText called with empty text");
+    }
+    for (const part of parts) {
+      await this.sendOneText(to, part, isGroup);
+    }
+  }
+
+  private async sendOneText(to: string, text: string, isGroup: boolean): Promise<void> {
     // Same /messages endpoint for 1:1 and groups — only recipient_type differs.
     // For a group, `to` is the group id (official Groups API).
     const res = await this.fetchFn(`${this.base}/${this.cfg.phoneNumberId}/messages`, {

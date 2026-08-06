@@ -33,6 +33,8 @@ export interface Interaction {
   response: string;
   hasImage: boolean;
   timestamp: string;
+  /** False until the transport confirms the reply actually reached the member. */
+  delivered: boolean;
 }
 
 let db: SqlJsDatabase;
@@ -111,9 +113,23 @@ export async function initDB(): Promise<void> {
       message TEXT NOT NULL,
       response TEXT NOT NULL,
       hasImage INTEGER DEFAULT 0,
-      timestamp TEXT NOT NULL
+      timestamp TEXT NOT NULL,
+      delivered INTEGER NOT NULL DEFAULT 0
     );
   `);
+
+  // Migration: whether the reply actually reached the member. Rows are written
+  // BEFORE the send (so a transport failure can't cost us the interaction),
+  // which used to mean a rejected message was stored as a flawless answer —
+  // a 5252-char reply was dropped by the 4096-char cap on 2026-08-06 and every
+  // record still showed it as answered. New rows start at 0 and are promoted
+  // only once the send returns; DEFAULT 1 here so pre-existing rows, written
+  // before this was tracked, aren't retroactively branded as failures.
+  try {
+    db.run("ALTER TABLE interactions ADD COLUMN delivered INTEGER NOT NULL DEFAULT 1");
+  } catch {
+    /* column already exists — nothing to do */
+  }
 
   // Durable opt-out ledger for the reactive path. A farmer who texts "STOP"
   // must stop receiving replies — and that decision has to survive a restart,
@@ -404,6 +420,11 @@ export function isOptedOut(userId: string): boolean {
   return result.length > 0 && result[0].values.length > 0;
 }
 
+/**
+ * Record the turn. Written before the reply is sent, so it starts as NOT
+ * delivered — call `markInteractionDelivered` once the transport confirms.
+ * Returns the row id so the caller can do exactly that.
+ */
 export function saveInteraction(
   userId: string,
   groupId: string,
@@ -411,24 +432,39 @@ export function saveInteraction(
   message: string,
   response: string,
   hasImage: boolean
-): void {
+): number {
   db.run(
-    "INSERT INTO interactions (userId, groupId, userName, message, response, hasImage, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO interactions (userId, groupId, userName, message, response, hasImage, timestamp, delivered) VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
     [userId, groupId, userName, message, response, hasImage ? 1 : 0, new Date().toISOString()]
   );
+  // last_insert_rowid() is connection-scoped and this module owns the single
+  // sql.js connection, so it cannot pick up another writer's insert.
+  const res = db.exec("SELECT last_insert_rowid()");
+  const id = Number(res[0]?.values?.[0]?.[0] ?? 0);
+  saveDB();
+  return id;
+}
+
+/** Promote a stored interaction to delivered once the send has succeeded. */
+export function markInteractionDelivered(id: number): void {
+  if (!id) return;
+  db.run("UPDATE interactions SET delivered = 1 WHERE id = ?", [id]);
   saveDB();
 }
 
-export function getRecentInteractions(userId: string, limit = 5): Interaction[] {
-  // Order by id (autoincrement) rather than timestamp: rapid messages can share
-  // a millisecond timestamp, and SQLite leaves ties in undefined order.
-  const result = db.exec(
-    "SELECT * FROM interactions WHERE userId = ? ORDER BY id DESC LIMIT ?",
-    [userId, limit]
+/**
+ * Turns whose reply never reached the member. The operational question this
+ * exists to answer: "who asked something and got nothing?"
+ */
+export function getUndeliveredInteractions(limit = 50): Interaction[] {
+  return rowsToInteractions(
+    db.exec("SELECT * FROM interactions WHERE delivered = 0 ORDER BY id DESC LIMIT ?", [limit])
   );
+}
 
+/** Positional row → Interaction. Column order follows the CREATE TABLE above. */
+function rowsToInteractions(result: any[]): Interaction[] {
   if (result.length === 0) return [];
-
   return result[0].values.map((row: any[]) => ({
     id: row[0] as number,
     userId: row[1] as string,
@@ -438,5 +474,14 @@ export function getRecentInteractions(userId: string, limit = 5): Interaction[] 
     response: row[5] as string,
     hasImage: (row[6] as number) === 1,
     timestamp: row[7] as string,
+    delivered: (row[8] as number) !== 0,
   }));
+}
+
+export function getRecentInteractions(userId: string, limit = 5): Interaction[] {
+  // Order by id (autoincrement) rather than timestamp: rapid messages can share
+  // a millisecond timestamp, and SQLite leaves ties in undefined order.
+  return rowsToInteractions(
+    db.exec("SELECT * FROM interactions WHERE userId = ? ORDER BY id DESC LIMIT ?", [userId, limit])
+  );
 }

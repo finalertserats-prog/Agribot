@@ -6,7 +6,13 @@ import { processMessage, type IncomingMessage, type Responder } from "../core/re
 import { resolvePersona, isInPersonaScope } from "../config/personas";
 import { config } from "../config";
 import type { CloudConfig } from "../config";
-import { detectLanguage, resolveStt, resolveTts } from "../lib/speech";
+import {
+  detectLanguage,
+  LOW_CONFIDENCE_LOGPROB,
+  resolveStt,
+  resolveTts,
+  shouldSendVoiceReply,
+} from "../lib/speech";
 import { toSpokenText } from "../lib/speech/spoken";
 import { toWhatsAppVoice } from "../lib/audio";
 
@@ -261,10 +267,11 @@ export async function dispatchInbound(
       }
     }
 
-    // Asked in voice → answered in text AND voice. Only when the member spoke
-    // first: unsolicited audio in a text conversation is intrusive, and it
-    // doubles cost on every message. Never allowed to fail the reply.
-    if (m.audioId && sent.length > 0) {
+    // Voice reply when the member spoke first OR asked for one in words
+    // ("voice lo cheppandi"), and never when they asked for text only. The text
+    // answer always goes out regardless — this only adds audio alongside it.
+    // Never allowed to fail the reply.
+    if (shouldSendVoiceReply(m.text, Boolean(m.audioId)) && sent.length > 0) {
       await sendVoiceReply(m, messenger, sent[sent.length - 1]).catch((err) =>
         logger.warn({ err, messageId: m.messageId }, "[speech] voice reply failed — text was sent")
       );
@@ -291,10 +298,24 @@ async function transcribeInbound(
   try {
     const audio = await messenger.fetchMedia(m.audioId!, MAX_VOICE_NOTE_BYTES, "audio/ogg");
     if (!audio) return null;
-    const text = await stt.transcribe(audio);
+    const { text, confidence } = await stt.transcribe(audio);
+    const trimmed = text.trim();
     // A transcript of one or two characters is noise (a cough, a misfire), not
     // a question — answering it produces a confusing non-sequitur.
-    return text.trim().length > 1 ? text.trim() : null;
+    if (trimmed.length <= 1) return null;
+
+    // Heard something, but not well enough to act on. Answering a garbled
+    // transcript is worse than admitting we missed it: the member gets a long,
+    // confident answer to a question they never asked. `undefined` means the
+    // vendor gave no confidence signal — that is not a low score, so it passes.
+    if (confidence !== undefined && confidence < LOW_CONFIDENCE_LOGPROB) {
+      logger.warn(
+        { confidence, chars: trimmed.length },
+        "[speech] transcript below confidence floor — asking the member to repeat"
+      );
+      return null;
+    }
+    return trimmed;
   } catch (err) {
     logger.error({ err }, "[speech] transcription failed");
     return null;

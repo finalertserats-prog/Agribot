@@ -50,3 +50,42 @@ describe("persona registry integrity", () => {
     expect(p.systemPrompt.length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * These lock behaviour the CTG persona lost in production on 2026-08-06: it
+ * re-introduced itself and re-asked the same closing question on three
+ * consecutive messages 80 seconds apart, and answered a Telugu-script question
+ * in romanized Telugu.
+ */
+describe("CTG Admn prompt — continuity and depth contract", () => {
+  const prompt = resolvePersona({ groupName: "City of Terrace Garden" }).systemPrompt;
+
+  it("tells the model that history means this is not a first message", () => {
+    expect(prompt).toMatch(/Recent conversation history/);
+    expect(prompt).toMatch(/NOT a first message/);
+  });
+
+  it("forbids re-announcing the member ID on every turn", () => {
+    expect(prompt).toMatch(/announced ONCE, ever/);
+  });
+
+  it("forbids re-asking a question already asked", () => {
+    expect(prompt).toMatch(/NEVER ask again for something you already asked/);
+  });
+
+  it("stops a bare greeting from triggering a full growing guide", () => {
+    expect(prompt).toMatch(/greeting does not deserve a full growing guide/);
+  });
+
+  it("requires mirroring the member's script, not just their language", () => {
+    expect(prompt).toMatch(/Telugu script/);
+  });
+
+  // Depth is wanted — chunking delivers it. The prompt must not learn to
+  // self-truncate to fit a message size.
+  it("keeps depth uncapped and tells the model long replies are split for it", () => {
+    expect(prompt).toMatch(/there is no line limit/);
+    expect(prompt).toMatch(/several consecutive WhatsApp messages/);
+    expect(prompt).not.toMatch(/keep .{0,20}under \d+ (characters|chars)/i);
+  });
+});

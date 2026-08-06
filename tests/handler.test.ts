@@ -289,10 +289,16 @@ describe("handleMessage — resilience", () => {
     expect(saveInteraction).toHaveBeenCalledOnce();
   });
 
-  it("persists even if the outbound send fails", async () => {
+  // Persistence must survive a send failure — but the failure itself must also
+  // reach the transport, which owns the "tell the member something broke"
+  // fallback. Swallowing it here is what left a member with total silence on
+  // 2026-08-06; each transport wraps this call in its own try/catch.
+  it("persists AND surfaces the error when the outbound send fails", async () => {
     const s = fakeSocket();
     (s.sendMessage as any).mockRejectedValueOnce(new Error("send failed"));
-    await handleMessage(s, textMsg("grow tomatoes"), false, "u1@s.whatsapp.net");
+    await expect(
+      handleMessage(s, textMsg("grow tomatoes"), false, "u1@s.whatsapp.net")
+    ).rejects.toThrow("send failed");
     await drain();
     expect(saveInteraction).toHaveBeenCalledOnce();
   });

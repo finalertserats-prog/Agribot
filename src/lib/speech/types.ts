@@ -18,6 +18,32 @@ export interface AudioBytes {
   provider?: string;
 }
 
+/** What a transcription attempt produced. */
+export interface Transcript {
+  text: string;
+  /**
+   * Mean token log-probability, when the vendor reports one. Closer to 0 is
+   * more confident; roughly -0.2 is a clean transcript. Left undefined when the
+   * vendor gives no signal — callers must then treat the text as trustworthy
+   * rather than guessing, so a silent vendor never blocks a member.
+   */
+  confidence?: number;
+}
+
+/**
+ * Below this mean log-probability the transcript is treated as not understood,
+ * and the member is asked to repeat instead of being answered on a guess. A
+ * real case: a Telugu voice note came back as "Hello, kura gelela banding cadi"
+ * and earned a 3500-word answer about the wrong crop.
+ *
+ * Set deliberately low. Romanized Telugu is unusual-looking text and scores
+ * worse than English even when perfectly transcribed, so a tight threshold
+ * would keep asking good speakers to repeat themselves — a far worse failure
+ * than occasionally answering a rough transcript. OpenAI's own guidance treats
+ * below -1 as "the logprobs failed", which anchors this.
+ */
+export const LOW_CONFIDENCE_LOGPROB = -1.0;
+
 /** Speech-to-text. WhatsApp voice notes arrive as OGG/Opus. */
 export interface SttProvider {
   readonly name: string;
@@ -26,7 +52,7 @@ export interface SttProvider {
    * a hint — CTG members code-switch mid-sentence, so a provider that supports
    * auto-detection should prefer it over a forced language.
    */
-  transcribe(audio: AudioBytes, languageHint?: string): Promise<string>;
+  transcribe(audio: AudioBytes, languageHint?: string): Promise<Transcript>;
 }
 
 /** Text-to-speech. Output is transcoded to OGG/Opus before it reaches WhatsApp. */

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { detectLanguage, LOCALE } from "../src/lib/speech/types";
-import { SarvamTtsProvider, SARVAM_MAX_CHARS } from "../src/lib/speech/sarvam";
+import { SarvamSttProvider, SarvamTtsProvider, SARVAM_MAX_CHARS } from "../src/lib/speech/sarvam";
 import { AzureTtsProvider } from "../src/lib/speech/azure";
-import { FallbackTtsProvider } from "../src/lib/speech/fallback";
+import { FallbackSttProvider, FallbackTtsProvider } from "../src/lib/speech/fallback";
 import { logger } from "../src/lib/logger";
 import type { TtsProvider } from "../src/lib/speech/types";
 
@@ -236,5 +236,97 @@ describe("resolveTts — chain construction from configured credentials", () => 
 
   it("disables voice rather than guessing when no vendor is configured", async () => {
     expect(await resolveWith({}, undefined)).toBeNull();
+  });
+});
+
+describe("FallbackSttProvider — a dead vendor must not lose a voice note", () => {
+  const heard = (tag: string) => ({
+    name: tag,
+    transcribe: vi.fn().mockResolvedValue({ text: `heard by ${tag}` }),
+  });
+  const dead = (tag: string, err: string) => ({
+    name: tag,
+    transcribe: vi.fn().mockRejectedValue(new Error(err)),
+  });
+
+  it("uses the preferred vendor when it answers", async () => {
+    const second = heard("openai");
+    const p = new FallbackSttProvider([heard("sarvam"), second]);
+    expect((await p.transcribe({ bytes: new Uint8Array([1]), mimeType: "audio/ogg" })).text).toBe(
+      "heard by sarvam"
+    );
+    expect(second.transcribe).not.toHaveBeenCalled();
+  });
+
+  // A member will not repeat a voice note because a vendor ran out of credit.
+  it("falls through so the voice note is still transcribed", async () => {
+    const p = new FallbackSttProvider([dead("sarvam", "402 no credits"), heard("openai")]);
+    expect((await p.transcribe({ bytes: new Uint8Array([1]), mimeType: "audio/ogg" })).text).toBe(
+      "heard by openai"
+    );
+  });
+
+  it("passes the language hint through to whichever vendor serves", async () => {
+    const openai = heard("openai");
+    const p = new FallbackSttProvider([dead("sarvam", "402"), openai]);
+    await p.transcribe({ bytes: new Uint8Array([1]), mimeType: "audio/ogg" }, "te-IN");
+    expect(openai.transcribe).toHaveBeenCalledWith(expect.anything(), "te-IN");
+  });
+
+  it("surfaces the last error when no vendor could hear it", async () => {
+    const p = new FallbackSttProvider([dead("sarvam", "402"), dead("openai", "429 rate limit")]);
+    await expect(
+      p.transcribe({ bytes: new Uint8Array([1]), mimeType: "audio/ogg" })
+    ).rejects.toThrow(/429 rate limit/);
+  });
+});
+
+describe("SarvamSttProvider", () => {
+  const ok = (body: unknown) => ({ ok: true, json: async () => body }) as unknown as Response;
+
+  it("sends the audio as multipart with the code-mix mode for saaras:v3", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(ok({ transcript: "kura mokkalu ela pencali" }));
+    const p = new SarvamSttProvider("k", { fetchFn: fetchFn as unknown as typeof fetch });
+    const out = await p.transcribe({ bytes: new Uint8Array([1, 2]), mimeType: "audio/ogg" });
+
+    expect(out.text).toBe("kura mokkalu ela pencali");
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toContain("/speech-to-text");
+    expect(init.headers["api-subscription-key"]).toBe("k");
+    // fetch must own Content-Type so the multipart boundary is correct.
+    expect(init.headers["Content-Type"]).toBeUndefined();
+    const form = init.body as FormData;
+    expect(form.get("model")).toBe("saaras:v3");
+    expect(form.get("mode")).toBe("codemix");
+  });
+
+  it("omits the v3-only mode when pointed at a model that rejects it", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(ok({ transcript: "x" }));
+    const p = new SarvamSttProvider("k", {
+      model: "saaras:v4",
+      fetchFn: fetchFn as unknown as typeof fetch,
+    });
+    await p.transcribe({ bytes: new Uint8Array([1]), mimeType: "audio/ogg" });
+    expect((fetchFn.mock.calls[0][1].body as FormData).get("mode")).toBeNull();
+  });
+
+  // language_probability scores WHICH LANGUAGE was detected, not how well the
+  // words were heard. Reporting it as `confidence` would compare a 0-1
+  // probability against a log-probability floor and always pass.
+  it("reports no confidence, because Sarvam's score measures something else", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(ok({ transcript: "x", language_probability: 0.4 }));
+    const p = new SarvamSttProvider("k", { fetchFn: fetchFn as unknown as typeof fetch });
+    expect((await p.transcribe({ bytes: new Uint8Array([1]), mimeType: "audio/ogg" })).confidence)
+      .toBeUndefined();
+  });
+
+  it("throws with the vendor status so the chain can fall through", async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 402, text: async () => "no credits" } as Response);
+    const p = new SarvamSttProvider("k", { fetchFn: fetchFn as unknown as typeof fetch });
+    await expect(
+      p.transcribe({ bytes: new Uint8Array([1]), mimeType: "audio/ogg" })
+    ).rejects.toThrow(/402/);
   });
 });

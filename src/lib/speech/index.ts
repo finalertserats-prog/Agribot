@@ -1,13 +1,14 @@
 import { config } from "../../config";
 import { logger } from "../logger";
 import { AzureTtsProvider } from "./azure";
-import { FallbackTtsProvider } from "./fallback";
+import { FallbackSttProvider, FallbackTtsProvider } from "./fallback";
 import { OpenAISttProvider, OpenAITtsProvider } from "./openai";
-import { SarvamTtsProvider } from "./sarvam";
+import { SarvamSttProvider, SarvamTtsProvider } from "./sarvam";
 import type { SttProvider, TtsProvider } from "./types";
 
-export type { AudioBytes, SpokenLanguage, SttProvider, TtsProvider } from "./types";
-export { detectLanguage, LOCALE } from "./types";
+export type { AudioBytes, SpokenLanguage, SttProvider, Transcript, TtsProvider } from "./types";
+export { detectLanguage, LOCALE, LOW_CONFIDENCE_LOGPROB } from "./types";
+export { requestedVoiceReply, shouldSendVoiceReply } from "./channel";
 
 /**
  * Provider resolution, mirroring `src/lib/llm/`. Whichever credential is
@@ -18,15 +19,38 @@ let stt: SttProvider | null | undefined;
 let tts: TtsProvider | null | undefined;
 
 /**
- * Transcription. Requires an OpenAI key specifically: Gemini-only deployments
- * get null and the bot tells the member it can't hear voice notes, which is far
- * better than silently ignoring one.
+ * Transcription, in descending order of accuracy on how CTG members actually
+ * speak — code-mixed Telugu-English:
+ *   Sarvam saaras — Indic-native, has a dedicated code-mix mode
+ *   OpenAI        — general-purpose; mangled "kura ..." into "kura gelela
+ *                   banding cadi" on a real member's voice note
+ * Both configured means both are tried, so an out-of-credit preferred vendor
+ * costs accuracy rather than the whole message. No key at all returns null, and
+ * the bot tells the member it can't hear voice notes — far better than
+ * silently ignoring one.
  */
 export function resolveStt(): SttProvider | null {
   if (stt !== undefined) return stt;
-  const key = config.llm.openai.apiKey;
-  stt = key ? new OpenAISttProvider(key, config.speech.sttModel) : null;
-  if (!stt) logger.warn("[speech] no OpenAI key — voice notes cannot be transcribed");
+  const chain: SttProvider[] = [];
+
+  if (config.speech.sarvamKey) {
+    chain.push(new SarvamSttProvider(config.speech.sarvamKey, { model: config.speech.sttSarvamModel }));
+  }
+  if (config.llm.openai.apiKey) {
+    chain.push(new OpenAISttProvider(config.llm.openai.apiKey, config.speech.sttModel));
+  }
+
+  if (chain.length === 0) {
+    logger.warn("[speech] no STT vendor configured — voice notes cannot be transcribed");
+    stt = null;
+    return stt;
+  }
+
+  stt = chain.length === 1 ? chain[0] : new FallbackSttProvider(chain);
+  logger.info(
+    { provider: chain[0].name, fallbacks: chain.slice(1).map((p) => p.name) },
+    "[speech] STT provider selected"
+  );
   return stt;
 }
 

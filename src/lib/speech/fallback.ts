@@ -1,5 +1,11 @@
 import { logger } from "../logger";
-import type { AudioBytes, SpokenLanguage, TtsProvider } from "./types";
+import type {
+  AudioBytes,
+  SpokenLanguage,
+  SttProvider,
+  Transcript,
+  TtsProvider,
+} from "./types";
 
 /**
  * Tries TTS vendors in order of Telugu quality and takes the first that
@@ -52,5 +58,46 @@ export class FallbackTtsProvider implements TtsProvider {
     throw lastError instanceof Error
       ? lastError
       : new Error(`All TTS providers failed: ${String(lastError)}`);
+  }
+}
+
+/**
+ * The same contract for transcription. A member's voice note is a one-shot
+ * event — they will not helpfully repeat it because a vendor was out of credit,
+ * so a dead preferred engine must cost accuracy, never the message itself.
+ */
+export class FallbackSttProvider implements SttProvider {
+  /** The preferred vendor. Per-call state must not live here — see above. */
+  readonly name: string;
+
+  constructor(private readonly providers: readonly SttProvider[]) {
+    if (providers.length === 0) throw new Error("FallbackSttProvider needs at least one provider");
+    this.name = providers[0].name;
+  }
+
+  async transcribe(audio: AudioBytes, languageHint?: string): Promise<Transcript> {
+    let lastError: unknown;
+    for (const provider of this.providers) {
+      try {
+        const result = await provider.transcribe(audio, languageHint);
+        if (provider.name !== this.name) {
+          logger.info(
+            { provider: provider.name, preferred: this.name },
+            "[speech] transcription served by fallback provider"
+          );
+        }
+        return result;
+      } catch (err) {
+        lastError = err;
+        const reason = err instanceof Error ? err.message : String(err);
+        logger.warn(
+          { reason, provider: provider.name },
+          "[speech] STT provider failed — trying next"
+        );
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error(`All STT providers failed: ${String(lastError)}`);
   }
 }

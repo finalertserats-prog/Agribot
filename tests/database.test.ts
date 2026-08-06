@@ -6,6 +6,8 @@ import {
   getUser,
   updateUserProfile,
   saveInteraction,
+  markInteractionDelivered,
+  getUndeliveredInteractions,
   getRecentInteractions,
   sanitizeProfileField,
   mergeFacts,
@@ -111,6 +113,32 @@ describe("database round-trip", () => {
 
   it("returns empty array for an unknown user", () => {
     expect(getRecentInteractions("nobody@s.whatsapp.net")).toEqual([]);
+  });
+
+  // The record must not claim an answer reached someone when the transport
+  // rejected it — that is what hid the lost 5252-char reply on 2026-08-06.
+  it("stores a new interaction as NOT delivered until the send is confirmed", () => {
+    const id = saveInteraction("u9@s.whatsapp.net", "g1", "Dev", "q", "a", false);
+    expect(id).toBeGreaterThan(0);
+    expect(getRecentInteractions("u9@s.whatsapp.net", 1)[0].delivered).toBe(false);
+    expect(getUndeliveredInteractions().some((i) => i.id === id)).toBe(true);
+  });
+
+  it("marks an interaction delivered once the send succeeds", () => {
+    const id = saveInteraction("u10@s.whatsapp.net", "g1", "Dev", "q", "a", false);
+    markInteractionDelivered(id);
+    expect(getRecentInteractions("u10@s.whatsapp.net", 1)[0].delivered).toBe(true);
+    expect(getUndeliveredInteractions().some((i) => i.id === id)).toBe(false);
+  });
+
+  it("hands back distinct ids so concurrent turns mark the right row", () => {
+    const a = saveInteraction("u11@s.whatsapp.net", "g1", "Dev", "q1", "a1", false);
+    const b = saveInteraction("u11@s.whatsapp.net", "g1", "Dev", "q2", "a2", false);
+    expect(b).toBe(a + 1);
+    markInteractionDelivered(b);
+    const recent = getRecentInteractions("u11@s.whatsapp.net", 2);
+    expect(recent[0].delivered).toBe(true); // q2 — sent
+    expect(recent[1].delivered).toBe(false); // q1 — still unconfirmed
   });
 
   it("records and reads back an opt-out", async () => {

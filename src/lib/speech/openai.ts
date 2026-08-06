@@ -1,6 +1,6 @@
 import OpenAI, { toFile } from "openai";
 import { logger } from "../logger";
-import type { AudioBytes, SpokenLanguage, SttProvider, TtsProvider } from "./types";
+import type { AudioBytes, SpokenLanguage, SttProvider, Transcript, TtsProvider } from "./types";
 
 /**
  * OpenAI speech connectors. STT is the primary transcription path; TTS is the
@@ -33,7 +33,7 @@ export class OpenAISttProvider implements SttProvider {
     this.model = model;
   }
 
-  async transcribe(audio: AudioBytes, languageHint?: string): Promise<string> {
+  async transcribe(audio: AudioBytes, languageHint?: string): Promise<Transcript> {
     // The SDK needs a File-like with a name whose extension matches the codec —
     // it is what the API sniffs the container from. WhatsApp voice notes are
     // always OGG/Opus, so default there rather than to a generic name.
@@ -49,13 +49,31 @@ export class OpenAISttProvider implements SttProvider {
     const res = await this.client.audio.transcriptions.create({
       file,
       model: this.model,
+      // logprobs are the only honest signal that the model heard nothing
+      // usable. Requires response_format "json" and a gpt-4o-transcribe model;
+      // both hold here, and a vendor that ignores the field simply omits them.
+      response_format: "json",
+      include: ["logprobs"],
       // Passed only when the caller is confident. Forcing "te" on a member who
       // actually spoke English produces confident nonsense, so an absent hint
       // (auto-detect) is the safer default.
       ...(languageHint ? { language: languageHint } : {}),
     });
-    return (res.text || "").trim();
+
+    return { text: (res.text || "").trim(), confidence: meanLogprob(res.logprobs) };
   }
+}
+
+/**
+ * Mean of the per-token log-probabilities, or undefined when the vendor didn't
+ * return any. Undefined means "no opinion" and must not be conflated with a low
+ * score — the caller treats the former as trustworthy and the latter as noise.
+ */
+function meanLogprob(logprobs: Array<{ logprob?: number }> | undefined): number | undefined {
+  if (!logprobs?.length) return undefined;
+  const values = logprobs.map((l) => l.logprob).filter((v): v is number => typeof v === "number");
+  if (values.length === 0) return undefined;
+  return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
 export class OpenAITtsProvider implements TtsProvider {

@@ -102,6 +102,9 @@ const envSchema = z
   SARVAM_API_KEY: z.preprocess(blankToUndef, z.string().min(1).optional()),
   SARVAM_TTS_MODEL: z.string().min(1).default("bulbul:v3"),
   SARVAM_SPEAKER: z.string().min(1).default("shubh"),
+  // Sarvam transcription. saaras:v3 is the version with the code-mix mode CTG
+  // needs; v4 exists but rejects `mode`, so switching is a deliberate choice.
+  SARVAM_STT_MODEL: z.string().min(1).default("saaras:v3"),
   // Azure Speech (alternative Indic engine; region is required alongside the key).
   AZURE_SPEECH_KEY: z.preprocess(blankToUndef, z.string().min(1).optional()),
   AZURE_SPEECH_REGION: z.preprocess(blankToUndef, z.string().min(1).optional()),
@@ -209,6 +212,7 @@ export const config = {
     sarvamKey: env.SARVAM_API_KEY,
     sarvamModel: env.SARVAM_TTS_MODEL,
     sarvamSpeaker: env.SARVAM_SPEAKER,
+    sttSarvamModel: env.SARVAM_STT_MODEL,
     azureKey: env.AZURE_SPEECH_KEY,
     azureRegion: env.AZURE_SPEECH_REGION,
   },
