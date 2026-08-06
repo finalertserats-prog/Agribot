@@ -14,10 +14,11 @@ group name / number (see `src/config/personas.ts`); CTG Admn is the default.
 ## First-time setup (VPS)
 
 ```bash
-git clone <this-repo> ctg-bot && cd ctg-bot
+# The live deploy is /root/Agribot with the GitHub repo as remote `origin`.
+git clone https://github.com/finalertserats-prog/Agribot.git Agribot && cd Agribot
 git checkout hardening/p0-p1
 npm install -g pm2
-npm ci && npm run build
+npm ci && npm run build   # pulls Puppeteer/Chromium for the group transport
 ```
 
 Create `.env` **by hand on the VPS** (it is gitignored — never in the repo, never paste
@@ -58,17 +59,48 @@ Then **add the group number to the CTG WhatsApp group** and test: `ctg how do I 
 
 ## Update an existing deploy (routine)
 
+**The remote is named `origin` ON THE VPS.** Locally the same GitHub repo is `deploy`
+(and `target`); `origin` locally is the *old* upstream. `git pull deploy …` on the VPS
+fails with "'deploy' does not appear to be a git repository".
+
 ```bash
-cd ctg-bot
-git remote -v                 # confirm this tracks the remote that has the new commit
-git pull
+cd /root/Agribot
+git remote -v                          # confirm the URL, not just the name
+git pull --ff-only origin hardening/p0-p1
+git rev-parse --short HEAD             # MUST equal the commit you pushed
 npm ci && npm run build
 pm2 restart agrifriend
-pm2 logs agrifriend           # only needed if Baileys must (re)pair — scan the fresh QR
+pm2 logs agrifriend                    # only if the group transport must re-link — scan the QR
 ```
 
-`.env`, `auth_info/` (WhatsApp session) and `data/` (DB) are gitignored, so `git pull`
+### Never pipe a command whose exit code you depend on
+
+A shell pipeline returns the exit status of the LAST command, so `tail` reports success
+even when `git` failed:
+
+```bash
+git pull … | tail -6 && npm run build   # BROKEN: builds the OLD source on a failed pull
+```
+
+This happened on 2026-08-06 and produced a deploy that shipped nothing while looking
+completely clean — `npm run build` re-compiled the previous commit and exited 0. **Verify a
+deploy by asserting the commit SHA on the host**, never by the absence of errors:
+
+```bash
+test "$(git rev-parse --short HEAD)" = "<expected-sha>" && echo OK || echo "DID NOT LAND"
+```
+
+`.env`, `auth_info*/` (WhatsApp session) and `data/` (DB) are gitignored, so `git pull`
 never touches them — the linked session and member data survive updates.
+
+### Dependencies
+
+`whatsapp-web.js` (and its Puppeteer/Chromium payload) is a **declared dependency**, so
+`npm ci` installs it and the group transport survives a clean reinstall. It used to be
+installed by hand on the VPS only, which meant `npm ci` would silently delete it and break
+groups. The `src/types/whatsapp-web.d.ts` shim still lets the project typecheck and build on
+a machine where the package isn't present; the real module is loaded via dynamic import only
+when `GROUP_TRANSPORT=whatsapp-web`.
 
 ---
 
