@@ -27,7 +27,12 @@ Master map of project knowledge. Load this first at session start.
   Voice picked BY EAR from six candidates → **`anand`** (vendor documents no tone/gender).
   Also fixed: Sarvam was returning 24 kHz and being upsampled, and `enable_preprocessing` was
   being sent to v3 which ignores it.
-  Pending: **top up the BACKUP Sarvam account** for real redundancy; re-scan the group QR.
+  **NEXT: pilot with real users** — the Cloud number is still a Meta TEST number, so only
+  allowlisted testers receive anything (hard cap 5, Meta App Dashboard → WhatsApp → API Setup).
+  Watch `SELECT * FROM interactions WHERE delivered=0` during the pilot: anyone there got
+  nothing. Baseline is exactly 1 row (the historical id 79).
+  Also pending: top up the BACKUP Sarvam account for real redundancy; re-scan the group QR.
+  Closed the day green — 0 errors since restart, 126 MB, 375 tests, VPS clean.
 - [2026-08-05 — Voice notes, the answer-depth root cause, and a regression suite](sessions/2026-08-05-voice-notes-answer-depth-regression-suite.md)
   — shallow/WRONG answers traced to the silent `gpt-4o-mini` default, not the persona (it called
   low-chill HRMN-99 a temperate 700–1000-chill-hour variety, and invented two different "HRMN"
