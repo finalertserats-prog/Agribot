@@ -39,7 +39,13 @@ const REQUEST_TIMEOUT_MS = 45_000;
 const MAX_BASE64_CHARS = 30 * 1024 * 1024;
 
 export class SarvamTtsProvider implements TtsProvider {
-  readonly name = "sarvam";
+  /**
+   * Distinguishes one Sarvam key from another in the fallback chain. The chain
+   * decides "did I fall through?" by comparing provider names, so two entries
+   * both called "sarvam" would make a key-to-key failover invisible and leave
+   * `AudioBytes.provider` unable to say which key actually paid for the call.
+   */
+  readonly name: string;
   private readonly apiKey: string;
   private readonly model: string;
   private readonly speaker: string;
@@ -47,8 +53,9 @@ export class SarvamTtsProvider implements TtsProvider {
 
   constructor(
     apiKey: string,
-    opts: { model?: string; speaker?: string; fetchFn?: typeof fetch } = {}
+    opts: { model?: string; speaker?: string; label?: string; fetchFn?: typeof fetch } = {}
   ) {
+    this.name = opts.label || "sarvam";
     this.apiKey = apiKey;
     this.model = opts.model || DEFAULT_MODEL;
     this.speaker = opts.speaker || DEFAULT_SPEAKER;
@@ -133,12 +140,17 @@ const CODEMIX_MODE = "codemix";
 const MODE_CAPABLE_MODEL = /^saaras:v3/;
 
 export class SarvamSttProvider implements SttProvider {
-  readonly name = "sarvam";
+  /** See `SarvamTtsProvider.name` — labels keep two keys apart in the chain. */
+  readonly name: string;
   private readonly apiKey: string;
   private readonly model: string;
   private readonly fetchFn: typeof fetch;
 
-  constructor(apiKey: string, opts: { model?: string; fetchFn?: typeof fetch } = {}) {
+  constructor(
+    apiKey: string,
+    opts: { model?: string; label?: string; fetchFn?: typeof fetch } = {}
+  ) {
+    this.name = opts.label || "sarvam";
     this.apiKey = apiKey;
     this.model = opts.model || DEFAULT_STT_MODEL;
     this.fetchFn = opts.fetchFn || fetch;

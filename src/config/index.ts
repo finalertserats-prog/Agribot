@@ -100,6 +100,10 @@ const envSchema = z
   OPENAI_TTS_VOICE: z.string().min(1).default("alloy"),
   // Sarvam (preferred for Telugu — handles code-mixed Telugu-English).
   SARVAM_API_KEY: z.preprocess(blankToUndef, z.string().min(1).optional()),
+  // A second Sarvam account, tried when the primary fails. Credit exhaustion is
+  // the failure that actually happens (a valid key on an empty account 402s on
+  // every call), and a spare key is the cheapest real redundancy for it.
+  SARVAM_API_KEY_BACKUP: z.preprocess(blankToUndef, z.string().min(1).optional()),
   SARVAM_TTS_MODEL: z.string().min(1).default("bulbul:v3"),
   SARVAM_SPEAKER: z.string().min(1).default("shubh"),
   // Sarvam transcription. saaras:v3 is the version with the code-mix mode CTG
@@ -210,6 +214,7 @@ export const config = {
     ttsModel: env.OPENAI_TTS_MODEL,
     ttsVoice: env.OPENAI_TTS_VOICE,
     sarvamKey: env.SARVAM_API_KEY,
+    sarvamKeyBackup: env.SARVAM_API_KEY_BACKUP,
     sarvamModel: env.SARVAM_TTS_MODEL,
     sarvamSpeaker: env.SARVAM_SPEAKER,
     sttSarvamModel: env.SARVAM_STT_MODEL,

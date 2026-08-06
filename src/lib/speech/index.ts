@@ -19,6 +19,25 @@ let stt: SttProvider | null | undefined;
 let tts: TtsProvider | null | undefined;
 
 /**
+ * Every configured Sarvam account, best first. Two keys are supported because
+ * the failure that actually happens is credit exhaustion, not an outage: a
+ * valid key on an empty account 402s on EVERY call, forever. A spare key turns
+ * that from "no Telugu voice until someone tops up" into a non-event.
+ *
+ * The labels matter — the fallback chain identifies providers by name, so
+ * without them a key-to-key failover would be invisible and nothing could say
+ * which account served (or is being billed for) a given reply.
+ */
+function sarvamKeys(): Array<{ key: string; label: string }> {
+  const out: Array<{ key: string; label: string }> = [];
+  if (config.speech.sarvamKey) out.push({ key: config.speech.sarvamKey, label: "sarvam" });
+  if (config.speech.sarvamKeyBackup) {
+    out.push({ key: config.speech.sarvamKeyBackup, label: "sarvam-backup" });
+  }
+  return out;
+}
+
+/**
  * Transcription, in descending order of accuracy on how CTG members actually
  * speak — code-mixed Telugu-English:
  *   Sarvam saaras — Indic-native, has a dedicated code-mix mode
@@ -33,8 +52,8 @@ export function resolveStt(): SttProvider | null {
   if (stt !== undefined) return stt;
   const chain: SttProvider[] = [];
 
-  if (config.speech.sarvamKey) {
-    chain.push(new SarvamSttProvider(config.speech.sarvamKey, { model: config.speech.sttSarvamModel }));
+  for (const { key, label } of sarvamKeys()) {
+    chain.push(new SarvamSttProvider(key, { model: config.speech.sttSarvamModel, label }));
   }
   if (config.llm.openai.apiKey) {
     chain.push(new OpenAISttProvider(config.llm.openai.apiKey, config.speech.sttModel));
@@ -73,9 +92,9 @@ export function resolveTts(): TtsProvider | null {
   const s = config.speech;
   const chain: TtsProvider[] = [];
 
-  if (s.sarvamKey) {
+  for (const { key, label } of sarvamKeys()) {
     chain.push(
-      new SarvamTtsProvider(s.sarvamKey, { model: s.sarvamModel, speaker: s.sarvamSpeaker })
+      new SarvamTtsProvider(key, { model: s.sarvamModel, speaker: s.sarvamSpeaker, label })
     );
   }
   if (s.azureKey && s.azureRegion) chain.push(new AzureTtsProvider(s.azureKey, s.azureRegion));

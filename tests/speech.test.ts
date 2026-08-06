@@ -166,6 +166,12 @@ describe("FallbackTtsProvider — a dead vendor must not silence voice replies",
   });
 });
 
+/** Chain member names, or the single provider's name when there is no chain. */
+function names(p: unknown): string[] {
+  const chain = (p as { providers?: Array<{ name: string }> })?.providers;
+  return chain ? chain.map((x) => x.name) : [(p as { name: string }).name];
+}
+
 describe("resolveTts — chain construction from configured credentials", () => {
   const speech = {
     enabled: true,
@@ -236,6 +242,62 @@ describe("resolveTts — chain construction from configured credentials", () => 
 
   it("disables voice rather than guessing when no vendor is configured", async () => {
     expect(await resolveWith({}, undefined)).toBeNull();
+  });
+
+  // Two Sarvam accounts: the backup is tried before dropping to a non-Indic
+  // voice, because a second Sarvam key still sounds Telugu and Azure/OpenAI
+  // are quality downgrades.
+  it("puts a backup Sarvam key second, ahead of every non-Sarvam vendor", async () => {
+    const p = await resolveWith(
+      { sarvamKey: "primary", sarvamKeyBackup: "backup", azureKey: "a", azureRegion: "centralindia" },
+      "sk-x"
+    );
+    expect(names(p)).toEqual(["sarvam", "sarvam-backup", "azure", "openai"]);
+  });
+
+  it("adds no phantom entry when only one Sarvam key is set", async () => {
+    const p = await resolveWith({ sarvamKey: "primary" }, "sk-x");
+    expect(names(p)).toEqual(["sarvam", "openai"]);
+  });
+
+  it("uses the backup alone if it is the only Sarvam key configured", async () => {
+    const p = await resolveWith({ sarvamKeyBackup: "backup" }, "sk-x");
+    expect(names(p)).toEqual(["sarvam-backup", "openai"]);
+  });
+});
+
+describe("resolveStt — chain construction with two Sarvam keys", () => {
+  async function resolveSttWith(overrides: Record<string, unknown>, openaiKey?: string) {
+    vi.resetModules();
+    vi.doMock("../src/config", () => ({
+      config: {
+        logLevel: "silent",
+        speech: { enabled: true, sttModel: "gpt-4o-transcribe", sttSarvamModel: "saaras:v3", ...overrides },
+        llm: { openai: { apiKey: openaiKey } },
+      },
+    }));
+    const mod = await import("../src/lib/speech");
+    mod.resetSpeechProviders();
+    return mod.resolveStt();
+  }
+
+  afterEach(() => {
+    vi.doUnmock("../src/config");
+    vi.resetModules();
+  });
+
+  it("tries both Sarvam accounts before the general-purpose engine", async () => {
+    const p = await resolveSttWith({ sarvamKey: "primary", sarvamKeyBackup: "backup" }, "sk-x");
+    expect(names(p)).toEqual(["sarvam", "sarvam-backup", "openai"]);
+  });
+
+  it("falls back to OpenAI alone when no Sarvam key is configured", async () => {
+    const p = await resolveSttWith({}, "sk-x");
+    expect(p?.name).toBe("openai");
+  });
+
+  it("returns null when nothing can transcribe", async () => {
+    expect(await resolveSttWith({}, undefined)).toBeNull();
   });
 });
 
@@ -328,5 +390,57 @@ describe("SarvamSttProvider", () => {
     await expect(
       p.transcribe({ bytes: new Uint8Array([1]), mimeType: "audio/ogg" })
     ).rejects.toThrow(/402/);
+  });
+});
+
+/**
+ * Two Sarvam keys. Credits are the failure mode that actually bites (a valid
+ * key on an exhausted account 402s on EVERY call), so a second key is the
+ * cheapest real redundancy available — and it slots into the chain that
+ * already exists rather than needing new machinery.
+ */
+describe("Sarvam providers — labelled so two keys are distinguishable", () => {
+  const okTts = { ok: true, json: async () => ({ audios: ["QUJD"] }) } as unknown as Response;
+  const okStt = { ok: true, json: async () => ({ transcript: "x" }) } as unknown as Response;
+
+  it("defaults to the plain vendor name", () => {
+    expect(new SarvamTtsProvider("k").name).toBe("sarvam");
+    expect(new SarvamSttProvider("k").name).toBe("sarvam");
+  });
+
+  it("takes a label so logs and results name the KEY that served", () => {
+    expect(new SarvamTtsProvider("k", { label: "sarvam-backup" }).name).toBe("sarvam-backup");
+    expect(new SarvamSttProvider("k", { label: "sarvam-backup" }).name).toBe("sarvam-backup");
+  });
+
+  it("still sends each key on its own requests", async () => {
+    const f1 = vi.fn().mockResolvedValue(okTts);
+    const f2 = vi.fn().mockResolvedValue(okStt);
+    await new SarvamTtsProvider("PRIMARY", { fetchFn: f1 as unknown as typeof fetch }).synthesize(
+      "x",
+      "te"
+    );
+    await new SarvamSttProvider("BACKUP", { fetchFn: f2 as unknown as typeof fetch }).transcribe({
+      bytes: new Uint8Array([1]),
+      mimeType: "audio/ogg",
+    });
+    expect(f1.mock.calls[0][1].headers["api-subscription-key"]).toBe("PRIMARY");
+    expect(f2.mock.calls[0][1].headers["api-subscription-key"]).toBe("BACKUP");
+  });
+
+  // Without distinct names the chain cannot tell it fell through, so the
+  // "served by fallback" signal silently disappears and AudioBytes.provider
+  // reports "sarvam" no matter which key actually paid for the call.
+  it("makes a key-to-key fallthrough visible in the result", async () => {
+    const dead = {
+      name: "sarvam",
+      synthesize: vi.fn().mockRejectedValue(new Error("Sarvam TTS failed (402): no credits")),
+    };
+    const alive = {
+      name: "sarvam-backup",
+      synthesize: vi.fn().mockResolvedValue({ bytes: new Uint8Array([1]), mimeType: "audio/wav" }),
+    };
+    const out = await new FallbackTtsProvider([dead, alive]).synthesize("x", "te");
+    expect(out.provider).toBe("sarvam-backup");
   });
 });
