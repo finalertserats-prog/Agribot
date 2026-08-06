@@ -103,7 +103,13 @@ export function resolveTts(): TtsProvider | null {
 
   for (const { key, label } of sarvamKeys()) {
     chain.push(
-      new SarvamTtsProvider(key, { model: s.sarvamModel, speaker: s.sarvamSpeaker, label })
+      new SarvamTtsProvider(key, {
+        model: s.sarvamModel,
+        speaker: s.sarvamSpeaker,
+        pace: s.sarvamPace,
+        temperature: s.sarvamTemperature,
+        label,
+      })
     );
   }
   if (s.azureKey && s.azureRegion) chain.push(new AzureTtsProvider(s.azureKey, s.azureRegion));

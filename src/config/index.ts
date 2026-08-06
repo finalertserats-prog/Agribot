@@ -106,6 +106,11 @@ const envSchema = z
   SARVAM_API_KEY_BACKUP: z.preprocess(blankToUndef, z.string().min(1).optional()),
   SARVAM_TTS_MODEL: z.string().min(1).default("bulbul:v3"),
   SARVAM_SPEAKER: z.string().min(1).default("shubh"),
+  // bulbul:v3 delivery. pace 0.5-2.0 (under 1.0 = measured, not rushed);
+  // temperature 0.01-2.0 (under the 0.6 default = steadier across a long
+  // answer). Both are v3-only and are what "calmer voice" is tuned with.
+  SARVAM_PACE: z.coerce.number().min(0.5).max(2).default(0.95),
+  SARVAM_TEMPERATURE: z.coerce.number().min(0.01).max(2).default(0.5),
   // Sarvam transcription. saaras:v3 is the version with the code-mix mode CTG
   // needs; v4 exists but rejects `mode`, so switching is a deliberate choice.
   SARVAM_STT_MODEL: z.string().min(1).default("saaras:v3"),
@@ -217,6 +222,8 @@ export const config = {
     sarvamKeyBackup: env.SARVAM_API_KEY_BACKUP,
     sarvamModel: env.SARVAM_TTS_MODEL,
     sarvamSpeaker: env.SARVAM_SPEAKER,
+    sarvamPace: env.SARVAM_PACE,
+    sarvamTemperature: env.SARVAM_TEMPERATURE,
     sttSarvamModel: env.SARVAM_STT_MODEL,
     azureKey: env.AZURE_SPEECH_KEY,
     azureRegion: env.AZURE_SPEECH_REGION,

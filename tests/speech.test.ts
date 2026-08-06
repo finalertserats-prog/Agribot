@@ -46,8 +46,51 @@ describe("SarvamTtsProvider", () => {
     expect(body.target_language_code).toBe(LOCALE.te);
     expect(body.model).toBe("bulbul:v3");
     expect(body.speaker).toBe("shubh");
-    expect(body.enable_preprocessing).toBe(true);
     expect(fetchFn.mock.calls[0][1].headers["api-subscription-key"]).toBe("k");
+  });
+
+  // WhatsApp voice notes are 48 kHz. Sarvam defaults to 24 kHz, so taking the
+  // default meant ffmpeg upsampled and half the output was interpolated.
+  it("asks for audio at WhatsApp's own sample rate instead of upsampling later", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse([Buffer.from("a").toString("base64")]));
+    await new SarvamTtsProvider("k", { fetchFn: fetchFn as unknown as typeof fetch }).synthesize(
+      "x",
+      "te"
+    );
+    expect(JSON.parse(fetchFn.mock.calls[0][1].body).speech_sample_rate).toBe(48000);
+  });
+
+  it("sends the v3 delivery controls that make the voice calmer", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse([Buffer.from("a").toString("base64")]));
+    await new SarvamTtsProvider("k", {
+      pace: 0.9,
+      temperature: 0.4,
+      fetchFn: fetchFn as unknown as typeof fetch,
+    }).synthesize("x", "te");
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body);
+    expect(body.pace).toBe(0.9);
+    expect(body.temperature).toBe(0.4);
+  });
+
+  // enable_preprocessing is a v2 parameter. bulbul:v3 ignores it, and pace /
+  // temperature do not exist on v2 — sending either to the wrong model is at
+  // best noise and at worst a 400.
+  it("sends only the parameters the selected model actually supports", async () => {
+    const f3 = vi.fn().mockResolvedValue(okResponse([Buffer.from("a").toString("base64")]));
+    await new SarvamTtsProvider("k", { fetchFn: f3 as unknown as typeof fetch }).synthesize("x", "te");
+    const v3 = JSON.parse(f3.mock.calls[0][1].body);
+    expect(v3.enable_preprocessing).toBeUndefined();
+    expect(v3.temperature).toBeDefined();
+
+    const f2 = vi.fn().mockResolvedValue(okResponse([Buffer.from("a").toString("base64")]));
+    await new SarvamTtsProvider("k", {
+      model: "bulbul:v2",
+      fetchFn: f2 as unknown as typeof fetch,
+    }).synthesize("x", "te");
+    const v2 = JSON.parse(f2.mock.calls[0][1].body);
+    expect(v2.enable_preprocessing).toBe(true);
+    expect(v2.temperature).toBeUndefined();
+    expect(v2.pace).toBeUndefined();
   });
 
   // Sarvam returns audio as an ARRAY of base64 chunks. Decoding each chunk

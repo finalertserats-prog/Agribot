@@ -31,6 +31,23 @@ export const SARVAM_MAX_CHARS = 2500;
 /** A hung vendor call must not pin a voice-reply task open indefinitely. */
 const REQUEST_TIMEOUT_MS = 45_000;
 
+/** What WhatsApp voice notes actually are — ask for it rather than upsample to it. */
+const WHATSAPP_SAMPLE_RATE = 48_000;
+
+/**
+ * Default delivery for bulbul:v3. A touch under natural pace reads as measured
+ * rather than rushed, which is what a senior volunteer explaining a dosage
+ * sounds like; a temperature below the 0.6 default keeps the voice consistent
+ * across a long answer instead of drifting in tone partway through.
+ */
+const DEFAULT_PACE = 0.95;
+const DEFAULT_TEMPERATURE = 0.5;
+
+/** Only bulbul:v3 accepts `pace`/`temperature`; only v2 accepts preprocessing. */
+function isV3(model: string): boolean {
+  return /^bulbul:v3/.test(model);
+}
+
 /**
  * Refuse absurd payloads before base64-decoding them. A changed or hostile
  * vendor response could otherwise allocate hundreds of MB before ffmpeg's own
@@ -49,16 +66,27 @@ export class SarvamTtsProvider implements TtsProvider {
   private readonly apiKey: string;
   private readonly model: string;
   private readonly speaker: string;
+  private readonly pace: number;
+  private readonly temperature: number;
   private readonly fetchFn: typeof fetch;
 
   constructor(
     apiKey: string,
-    opts: { model?: string; speaker?: string; label?: string; fetchFn?: typeof fetch } = {}
+    opts: {
+      model?: string;
+      speaker?: string;
+      label?: string;
+      pace?: number;
+      temperature?: number;
+      fetchFn?: typeof fetch;
+    } = {}
   ) {
     this.name = opts.label || "sarvam";
     this.apiKey = apiKey;
     this.model = opts.model || DEFAULT_MODEL;
     this.speaker = opts.speaker || DEFAULT_SPEAKER;
+    this.pace = opts.pace ?? DEFAULT_PACE;
+    this.temperature = opts.temperature ?? DEFAULT_TEMPERATURE;
     this.fetchFn = opts.fetchFn || fetch;
   }
 
@@ -83,14 +111,30 @@ export class SarvamTtsProvider implements TtsProvider {
         target_language_code: LOCALE[language],
         model: this.model,
         speaker: this.speaker,
-        // Normalizes English words and numeric entities inside Indic text —
-        // our replies are full of "10 litres", "NPK 19:19:19", "pH 6.5", and
-        // unnormalized numerals get read as digits rather than spoken words.
-        enable_preprocessing: true,
+        // Ask for 48 kHz, which is exactly what WhatsApp voice notes are. The
+        // vendor default is 24 kHz, so ffmpeg was upsampling — half the samples
+        // in every voice note were interpolated rather than synthesized.
+        speech_sample_rate: WHATSAPP_SAMPLE_RATE,
+        // Model-specific parameters. Sending a v2 option to v3 (or vice versa)
+        // is at best ignored and at worst a 400, so they are split by model.
+        ...(isV3(this.model)
+          ? {
+              // Delivery controls. Slightly under 1.0 reads as measured rather
+              // than hurried, and a lower temperature keeps the voice steady
+              // instead of varying its delivery across a long answer.
+              pace: this.pace,
+              temperature: this.temperature,
+            }
+          : {
+              // v2 only. Normalizes numerals inside Indic text — replies are
+              // full of "10 litres", "NPK 19:19:19", "pH 6.5", which otherwise
+              // get read as bare digits. v3 handles this natively.
+              enable_preprocessing: true,
+            }),
         // Deliberately NOT requesting Opus here. The vendor's default is WAV,
         // and ffmpeg has to run anyway to produce the exact OGG/Opus WhatsApp
-        // requires for a voice-note bubble — so take the format that is least
-        // ambiguous across API versions and let one transcode settle it.
+        // requires for a voice-note bubble — so take the lossless format and
+        // let one transcode settle it.
       }),
     });
 
