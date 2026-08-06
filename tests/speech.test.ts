@@ -45,7 +45,9 @@ describe("SarvamTtsProvider", () => {
     const body = JSON.parse(fetchFn.mock.calls[0][1].body);
     expect(body.target_language_code).toBe(LOCALE.te);
     expect(body.model).toBe("bulbul:v3");
-    expect(body.speaker).toBe("shubh");
+    // "anand" — picked by ear over five other candidates; the vendor default
+    // ("shubh") was rejected as harsher to listen to.
+    expect(body.speaker).toBe("anand");
     expect(fetchFn.mock.calls[0][1].headers["api-subscription-key"]).toBe("k");
   });
 

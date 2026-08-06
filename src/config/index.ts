@@ -105,7 +105,7 @@ const envSchema = z
   // every call), and a spare key is the cheapest real redundancy for it.
   SARVAM_API_KEY_BACKUP: z.preprocess(blankToUndef, z.string().min(1).optional()),
   SARVAM_TTS_MODEL: z.string().min(1).default("bulbul:v3"),
-  SARVAM_SPEAKER: z.string().min(1).default("shubh"),
+  SARVAM_SPEAKER: z.string().min(1).default("anand"),
   // bulbul:v3 delivery. pace 0.5-2.0 (under 1.0 = measured, not rushed);
   // temperature 0.01-2.0 (under the 0.6 default = steadier across a long
   // answer). Both are v3-only and are what "calmer voice" is tuned with.

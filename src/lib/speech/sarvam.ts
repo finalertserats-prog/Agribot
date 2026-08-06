@@ -19,7 +19,14 @@ const ENDPOINT = "https://api.sarvam.ai/text-to-speech";
 
 /** bulbul:v3 accepts 2500 chars; v2 only 1500. */
 const DEFAULT_MODEL = "bulbul:v3";
-const DEFAULT_SPEAKER = "shubh";
+/**
+ * Chosen by listening, not by guessing — the vendor documents no gender or tone
+ * for any speaker, so six candidates were synthesized on the same CTG line and
+ * compared by ear (2026-08-06). `anand` was picked as the calmest and easiest
+ * to listen to; the vendor default `shubh` was rejected as harsher. Override
+ * per deployment with SARVAM_SPEAKER.
+ */
+const DEFAULT_SPEAKER = "anand";
 
 /**
  * Hard ceiling from the vendor's own limit for bulbul:v3. Callers should have
