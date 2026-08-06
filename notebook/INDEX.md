@@ -3,6 +3,23 @@
 Master map of project knowledge. Load this first at session start.
 
 ## Sessions
+- [2026-08-06 — Sarvam key, and the answer a member never received](sessions/2026-08-06-sarvam-key-and-the-lost-answer.md)
+  — deployed `SARVAM_API_KEY`; it AUTHENTICATES but the account has **zero credits** (402 on
+  every call; 403 would mean a bad key), so Telugu voice + Sarvam STT stay dormant until topped
+  up. Built TTS/STT **fallback chains** so a dead vendor costs quality, never the message.
+  Then reviewed the 9676807316 thread and found a member asked (by voice, in Telugu) how to grow
+  tomatoes and **received nothing**: a 5252-char answer exceeded WhatsApp's 4096 cap → 400 →
+  `reply.ts` swallowed the error, disabling the "say something" fallback, and skipped the owed
+  voice note too — while the DB recorded a flawless answer. Fixed: chunking (now the delivery
+  mechanism for DEPTH, which the user explicitly wants — not a length cap), rethrow, a
+  `delivered` ledger, conversation continuity (no re-introducing/re-asking every turn), a
+  transcript-confidence floor via logprobs, and voice-or-text on request. 359 tests.
+  SCARS: `| tail` swallows git's exit code (shipped a silent no-op deploy — verify by SHA);
+  the VPS remote is `origin`, not `deploy`; JS `\b` doesn't work with Telugu script.
+  Then (`8eb888f`) declared `whatsapp-web.js` with the lockfile copied FROM the running VPS so
+  `npm ci` reproduces the proven tree (verified by dry-run: adds wweb+puppeteer, 0 removals),
+  and rewrote DEPLOY.md around the pipeline-exit-code trap.
+  Pending: **top up Sarvam credits**; re-scan the group QR.
 - [2026-08-05 — Voice notes, the answer-depth root cause, and a regression suite](sessions/2026-08-05-voice-notes-answer-depth-regression-suite.md)
   — shallow/WRONG answers traced to the silent `gpt-4o-mini` default, not the persona (it called
   low-chill HRMN-99 a temperate 700–1000-chill-hour variety, and invented two different "HRMN"
