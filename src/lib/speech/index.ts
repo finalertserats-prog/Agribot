@@ -1,6 +1,7 @@
 import { config } from "../../config";
 import { logger } from "../logger";
 import { AzureTtsProvider } from "./azure";
+import { FallbackTtsProvider } from "./fallback";
 import { OpenAISttProvider, OpenAITtsProvider } from "./openai";
 import { SarvamTtsProvider } from "./sarvam";
 import type { SttProvider, TtsProvider } from "./types";
@@ -34,25 +35,45 @@ export function resolveStt(): SttProvider | null {
  *   Sarvam  — Indic-native, handles code-mixed Telugu-English (best fit)
  *   Azure   — real te-IN neural voice, one locale per utterance
  *   OpenAI  — no Telugu voice, but needs no new vendor; ships today
+ *
+ * Every configured vendor goes into the chain, not just the best one. A key
+ * being present says the vendor is reachable, not that it will answer — a
+ * credit balance runs out mid-week and 402s every call after that. Chaining
+ * means an exhausted preferred vendor costs pronunciation quality for that
+ * reply, not the voice note itself.
+ *
  * Returning null disables voice replies while leaving text replies untouched.
  */
 export function resolveTts(): TtsProvider | null {
   if (tts !== undefined) return tts;
   const s = config.speech;
+  const chain: TtsProvider[] = [];
 
   if (s.sarvamKey) {
-    tts = new SarvamTtsProvider(s.sarvamKey, { model: s.sarvamModel, speaker: s.sarvamSpeaker });
-  } else if (s.azureKey && s.azureRegion) {
-    tts = new AzureTtsProvider(s.azureKey, s.azureRegion);
-  } else if (config.llm.openai.apiKey) {
-    logger.warn(
-      "[speech] falling back to OpenAI TTS — no Telugu voice. Set SARVAM_API_KEY or AZURE_SPEECH_KEY for native Telugu."
+    chain.push(
+      new SarvamTtsProvider(s.sarvamKey, { model: s.sarvamModel, speaker: s.sarvamSpeaker })
     );
-    tts = new OpenAITtsProvider(config.llm.openai.apiKey, s.ttsModel, s.ttsVoice);
-  } else {
-    tts = null;
   }
-  if (tts) logger.info({ provider: tts.name }, "[speech] TTS provider selected");
+  if (s.azureKey && s.azureRegion) chain.push(new AzureTtsProvider(s.azureKey, s.azureRegion));
+  if (config.llm.openai.apiKey) {
+    chain.push(new OpenAITtsProvider(config.llm.openai.apiKey, s.ttsModel, s.ttsVoice));
+  }
+
+  if (chain.length === 0) {
+    tts = null;
+    return tts;
+  }
+  if (!s.sarvamKey && !(s.azureKey && s.azureRegion)) {
+    logger.warn(
+      "[speech] OpenAI TTS only — no Telugu voice. Set SARVAM_API_KEY or AZURE_SPEECH_KEY for native Telugu."
+    );
+  }
+
+  tts = chain.length === 1 ? chain[0] : new FallbackTtsProvider(chain);
+  logger.info(
+    { provider: chain[0].name, fallbacks: chain.slice(1).map((p) => p.name) },
+    "[speech] TTS provider selected"
+  );
   return tts;
 }
 

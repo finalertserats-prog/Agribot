@@ -8,6 +8,14 @@
 export interface AudioBytes {
   bytes: Uint8Array;
   mimeType: string;
+  /**
+   * The vendor that actually synthesized this clip. Travels with the result
+   * rather than being read back off the provider, because the provider is a
+   * process-wide singleton: with a fallback chain and two members speaking at
+   * once, any mutable "who served last" field reports whoever finished last,
+   * not who served this reply.
+   */
+  provider?: string;
 }
 
 /** Speech-to-text. WhatsApp voice notes arrive as OGG/Opus. */

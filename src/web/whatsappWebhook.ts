@@ -324,7 +324,10 @@ async function sendVoiceReply(
   if (!mediaId) return;
 
   await messenger.sendAudio(m.groupId ?? m.waId, mediaId, Boolean(m.groupId));
-  logger.info({ provider: tts.name, bytes: voice.bytes.byteLength }, "[speech] voice reply sent");
+  logger.info(
+    { provider: raw.provider ?? tts.name, bytes: voice.bytes.byteLength },
+    "[speech] voice reply sent"
+  );
 }
 
 /**

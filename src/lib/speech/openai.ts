@@ -20,6 +20,9 @@ const DEFAULT_TTS_MODEL = "gpt-4o-mini-tts";
  */
 const DEFAULT_TTS_VOICE = "alloy";
 
+/** A hung vendor call must not pin a voice-reply task open indefinitely. */
+const REQUEST_TIMEOUT_MS = 45_000;
+
 export class OpenAISttProvider implements SttProvider {
   readonly name = "openai";
   private readonly client: OpenAI;
@@ -76,15 +79,21 @@ export class OpenAITtsProvider implements TtsProvider {
         "[speech] synthesizing Telugu on OpenAI TTS — an Indic engine sounds materially better"
       );
     }
-    const res = await this.client.audio.speech.create({
-      model: this.model,
-      voice: this.voice,
-      input: text,
-      // Ask for Opus directly: WhatsApp voice notes must be Opus, and starting
-      // from Opus makes the ffmpeg step a cheap container rewrap rather than a
-      // full re-encode through another lossy codec.
-      response_format: "opus",
-    });
+    const res = await this.client.audio.speech.create(
+      {
+        model: this.model,
+        voice: this.voice,
+        input: text,
+        // Ask for Opus directly: WhatsApp voice notes must be Opus, and starting
+        // from Opus makes the ffmpeg step a cheap container rewrap rather than a
+        // full re-encode through another lossy codec.
+        response_format: "opus",
+      },
+      // Matches the ceiling Sarvam and Azure already impose. As the last link in
+      // the fallback chain, a hang here has nothing left to fall through to —
+      // it just holds the voice reply open until the member has moved on.
+      { timeout: REQUEST_TIMEOUT_MS }
+    );
     return {
       bytes: new Uint8Array(await res.arrayBuffer()),
       mimeType: "audio/ogg",
