@@ -444,3 +444,50 @@ describe("Sarvam providers — labelled so two keys are distinguishable", () => 
     expect(out.provider).toBe("sarvam-backup");
   });
 });
+
+describe("sarvamKeys — misconfiguration guards", () => {
+  async function ttsWith(overrides: Record<string, unknown>) {
+    vi.resetModules();
+    vi.doMock("../src/config", () => ({
+      config: {
+        logLevel: "silent",
+        speech: { enabled: true, sarvamModel: "bulbul:v3", sarvamSpeaker: "shubh", ...overrides },
+        llm: { openai: { apiKey: "sk-x" } },
+      },
+    }));
+    const mod = await import("../src/lib/speech");
+    mod.resetSpeechProviders();
+    return mod.resolveTts();
+  }
+
+  afterEach(() => {
+    vi.doUnmock("../src/config");
+    vi.resetModules();
+  });
+
+  // Pasting the same key into both slots is an easy slip during a rotation.
+  // Retrying an exhausted account against itself buys nothing but latency.
+  it("collapses a backup key that is identical to the primary", async () => {
+    expect(names(await ttsWith({ sarvamKey: "same", sarvamKeyBackup: "same" }))).toEqual([
+      "sarvam",
+      "openai",
+    ]);
+  });
+
+  it("keeps both when the keys genuinely differ", async () => {
+    expect(names(await ttsWith({ sarvamKey: "a", sarvamKeyBackup: "b" }))).toEqual([
+      "sarvam",
+      "sarvam-backup",
+      "openai",
+    ]);
+  });
+
+  // `name` identifies vendor AND account. Nothing branches on it today (only
+  // logs and the chain's own fallthrough check), but if vendor-level logic is
+  // ever added, every Sarvam account must remain recognisable as Sarvam.
+  it("keeps every Sarvam account identifiable as Sarvam by prefix", async () => {
+    for (const n of names(await ttsWith({ sarvamKey: "a", sarvamKeyBackup: "b" })).slice(0, 2)) {
+      expect(n.startsWith("sarvam")).toBe(true);
+    }
+  });
+});

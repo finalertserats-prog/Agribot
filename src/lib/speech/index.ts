@@ -26,14 +26,23 @@ let tts: TtsProvider | null | undefined;
  *
  * The labels matter — the fallback chain identifies providers by name, so
  * without them a key-to-key failover would be invisible and nothing could say
- * which account served (or is being billed for) a given reply.
+ * which account served (or is being billed for) a given reply. A provider name
+ * therefore identifies vendor AND account; every Sarvam account stays prefixed
+ * "sarvam" so vendor-level checks remain possible.
  */
 function sarvamKeys(): Array<{ key: string; label: string }> {
   const out: Array<{ key: string; label: string }> = [];
-  if (config.speech.sarvamKey) out.push({ key: config.speech.sarvamKey, label: "sarvam" });
-  if (config.speech.sarvamKeyBackup) {
-    out.push({ key: config.speech.sarvamKeyBackup, label: "sarvam-backup" });
-  }
+  const seen = new Set<string>();
+  const add = (key: string | undefined, label: string): void => {
+    // Deduped: pasting the same key into both slots is an easy slip during a
+    // rotation, and retrying an exhausted account against itself buys nothing
+    // but latency on every voice reply.
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push({ key, label });
+  };
+  add(config.speech.sarvamKey, "sarvam");
+  add(config.speech.sarvamKeyBackup, "sarvam-backup");
   return out;
 }
 
