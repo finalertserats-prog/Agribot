@@ -2,7 +2,13 @@ import crypto from "crypto";
 import express, { type Router, type Request } from "express";
 import { logger } from "../lib/logger";
 import { SeenCache } from "../lib/seen";
-import { processMessage, type IncomingMessage, type Responder } from "../core/reply";
+import {
+  DeliverySuppressedError,
+  isDeliverySuppressed,
+  processMessage,
+  type IncomingMessage,
+  type Responder,
+} from "../core/reply";
 import { resolvePersona, isInPersonaScope } from "../config/personas";
 import { config } from "../config";
 import type { CloudConfig } from "../config";
@@ -13,8 +19,9 @@ import {
   resolveTts,
   shouldSendVoiceReply,
 } from "../lib/speech";
-import { toSpokenText } from "../lib/speech/spoken";
+import { buildSpokenText } from "../lib/speech/spoken";
 import { toWhatsAppVoice } from "../lib/audio";
+import { startTyping } from "../lib/typing";
 
 /** A normalized inbound message pulled out of Meta's webhook payload. */
 export interface InboundCloudMessage {
@@ -178,103 +185,162 @@ export async function dispatchInbound(
       logger.debug({ messageId: m.messageId }, "[cloud] duplicate webhook message — skipping");
       continue;
     }
+    // One member's message must never cost another theirs. Everything inside
+    // dispatchOne is already guarded, but a webhook payload can carry several
+    // messages and an unforeseen throw here would skip every one after it.
+    await dispatchOne(m, messenger).catch((err) =>
+      logger.error({ err, messageId: m.messageId }, "[cloud] dispatch failed for one message")
+    );
+  }
+}
 
-    // Official Groups API message → route by group; else 1:1 by the number.
-    const persona = resolvePersona({
-      groupId: m.groupId,
-      phoneNumberId: config.cloud?.phoneNumberId,
-    });
+/**
+ * One inbound message, start to finish: show that we're working on it,
+ * understand it, answer it, and deliver the answer in the order that reads best
+ * to the member — voice note first, then the full text.
+ */
+async function dispatchOne(m: InboundCloudMessage, messenger: CloudMessenger): Promise<void> {
+  const target = m.groupId ?? m.waId;
+  const isGroup = Boolean(m.groupId);
 
-    // Smart auto-reply in an official group pod: answer only when tagged
-    // (trigger / persona name) or when the message is a gardening question in
-    // scope — mirrors the Baileys group behavior so pods aren't spammed.
-    if (m.groupId && !m.hasImage) {
-      const lower = m.text.toLowerCase();
-      const tagged =
-        lower.includes(config.botTrigger.toLowerCase()) ||
-        lower.includes(persona.displayName.toLowerCase());
-      if (!tagged && !isInPersonaScope(persona, m.text)) {
-        continue; // untagged group chit-chat — stay silent (already marked seen above)
+  // Human touch (1:1): mark the message read (blue ticks) and keep "typing…" on
+  // screen for as long as we are actually working — through transcription, the
+  // model, and building the voice note. Started BEFORE anything slow: a voice
+  // note takes seconds to transcribe, and the member should see us reading it
+  // rather than watching nothing happen. Best-effort throughout; a group chat
+  // has no indicator, so it gets an inert handle.
+  const typing = isGroup ? null : startTyping(messenger, m.messageId, target);
+
+  try {
+    await answerOne(m, messenger, target, isGroup, () => typing?.stop());
+  } finally {
+    typing?.stop();
+  }
+}
+
+async function answerOne(
+  m: InboundCloudMessage,
+  messenger: CloudMessenger,
+  target: string,
+  isGroup: boolean,
+  stopTyping: () => void
+): Promise<void> {
+  // Official Groups API message → route by group; else 1:1 by the number.
+  const persona = resolvePersona({
+    groupId: m.groupId,
+    phoneNumberId: config.cloud?.phoneNumberId,
+  });
+
+  // Smart auto-reply in an official group pod: answer only when tagged
+  // (trigger / persona name) or when the message is a gardening question in
+  // scope — mirrors the Baileys group behavior so pods aren't spammed.
+  if (m.groupId && !m.hasImage) {
+    const lower = m.text.toLowerCase();
+    const tagged =
+      lower.includes(config.botTrigger.toLowerCase()) ||
+      lower.includes(persona.displayName.toLowerCase());
+    if (!tagged && !isInPersonaScope(persona, m.text)) {
+      return; // untagged group chit-chat — stay silent (already marked seen)
+    }
+  }
+
+  // Voice note in → transcribe before anything else, so the rest of the
+  // pipeline (persona scope, memory, policy) sees a normal text question.
+  if (m.audioId) {
+    const transcript = await transcribeInbound(m, messenger);
+    if (!transcript) {
+      // Tell the member rather than going silent — an ignored voice note is
+      // indistinguishable from a broken bot. Unless they opted out while we
+      // were listening to it, in which case silence is what they asked for:
+      // transcription takes seconds, and this notice never passed the core's
+      // consent gate on its way here.
+      if (isDeliverySuppressed(m.waId)) return;
+      await messenger
+        .sendText(
+          target,
+          "Voice note andukunnanu, kaani ardham cheskoleka poyanu 🙏 Malli try cheyyandi, leda text lo type chesi pampandi.",
+          isGroup
+        )
+        .catch((err) => logger.warn({ err }, "[cloud] voice-failure notice not sent"));
+      return;
+    }
+    m.text = transcript;
+    logger.info({ chars: transcript.length }, "[speech] voice note transcribed");
+  }
+
+  const incoming: IncomingMessage = {
+    userId: m.waId, // the participant (group) or the user (1:1)
+    remoteJid: target, // reply target: the group, or the user
+    displayName: m.name,
+    text: m.text,
+    hasImage: m.hasImage,
+    loadImage: async () => (m.imageId ? messenger.fetchImage(m.imageId) : null),
+    persona,
+  };
+
+  // Voice reply when the member spoke first OR asked for one in words ("voice
+  // lo cheppandi"), and never when they asked for text only. Decided from the
+  // transcript, so it is settled before the answer exists.
+  const wantsVoice = shouldSendVoiceReply(m.text, Boolean(m.audioId));
+
+  // Did the member actually receive anything this turn? Counts the voice note
+  // too — otherwise a text send that fails AFTER the audio landed would trip
+  // the "nothing arrived" notice and apologise for a message they just got.
+  let delivered = 0;
+
+  const responder: Responder = {
+    // Interstitials — consent, rate limit, off-topic. Straight out, no audio:
+    // "please try again in a minute" is not worth a voice note.
+    //
+    // Deliberately NOT gated on isDeliverySuppressed. The STOP and DELETE
+    // confirmations come through here *after* the opt-out has been recorded,
+    // so the member is suppressed by the time we owe them the one message that
+    // says so. Gating this would swallow exactly those confirmations.
+    send: async (t: string) => {
+      await messenger.sendText(target, t, isGroup);
+      delivered += 1;
+    },
+
+    // THE answer. Voice note first, then the full text — the member hears the
+    // gist in a few seconds and reads the detail underneath, which is what
+    // makes it feel like a person answering rather than a document arriving.
+    sendFinal: async (t: string) => {
+      if (wantsVoice) {
+        const spoke = await speakAnswer(t, target, isGroup, m.waId, messenger, stopTyping);
+        if (spoke) delivered += 1;
       }
+      // Last compliance gate. Building the voice note can take half a minute,
+      // and a STOP or DELETE that arrived during it must be honoured.
+      if (isDeliverySuppressed(m.waId)) throw new DeliverySuppressedError();
+      stopTyping();
+      await messenger.sendText(target, t, isGroup);
+      delivered += 1;
+    },
+  };
+
+  try {
+    await processMessage(incoming, responder);
+  } catch (err) {
+    // A refused delivery is the opt-out policy working. The core normally
+    // absorbs it; catching it here too means no future caller can turn a
+    // member's STOP into an unsolicited apology.
+    if (err instanceof DeliverySuppressedError) {
+      logger.info({ messageId: m.messageId }, "[cloud] delivery suppressed mid-send");
+      return;
     }
-
-    // Voice note in → transcribe before anything else, so the rest of the
-    // pipeline (persona scope, memory, policy) sees a normal text question.
-    if (m.audioId) {
-      const transcript = await transcribeInbound(m, messenger);
-      if (!transcript) {
-        // Tell the member rather than going silent — an ignored voice note is
-        // indistinguishable from a broken bot.
-        await messenger
-          .sendText(
-            m.groupId ?? m.waId,
-            "Voice note andukunnanu, kaani ardham cheskoleka poyanu 🙏 Malli try cheyyandi, leda text lo type chesi pampandi.",
-            Boolean(m.groupId)
-          )
-          .catch((err) => logger.warn({ err }, "[cloud] voice-failure notice not sent"));
-        continue;
-      }
-      m.text = transcript;
-      logger.info({ chars: transcript.length }, "[speech] voice note transcribed");
-    }
-
-    const incoming: IncomingMessage = {
-      userId: m.waId, // the participant (group) or the user (1:1)
-      remoteJid: m.groupId ?? m.waId, // reply target: the group, or the user
-      displayName: m.name,
-      text: m.text,
-      hasImage: m.hasImage,
-      loadImage: async () => (m.imageId ? messenger.fetchImage(m.imageId) : null),
-      persona,
-    };
-
-    // Remember what was actually said so the voice note can mirror the final
-    // answer rather than an interstitial (a consent notice, a rate-limit note).
-    const sent: string[] = [];
-    const responder: Responder = {
-      send: async (t: string) => {
-        // Group replies go to the group id with recipient_type=group.
-        await messenger.sendText(m.groupId ?? m.waId, t, Boolean(m.groupId));
-        sent.push(t);
-      },
-    };
-
-    // Human touch (1:1): mark the message read (blue ticks) + show "typing…"
-    // while CTG Admn thinks. Best-effort — fired-and-forgotten so it never
-    // delays or blocks the actual reply.
-    // .catch() rather than bare `void`: a rejecting implementation would
-    // otherwise surface as an unhandled rejection and take the process down.
-    if (!m.groupId) {
-      messenger
-        .markReadAndTyping?.(m.messageId)
-        .catch((err) => logger.debug({ err }, "[cloud] markReadAndTyping failed"));
-    }
-
-    try {
-      await processMessage(incoming, responder);
-    } catch (err) {
-      logger.error({ err, messageId: m.messageId }, "[cloud] processMessage failed");
-      // If it threw BEFORE anything was sent, the member is staring at silence
-      // and cannot tell a crash from a slow answer. Say something.
-      if (sent.length === 0) {
-        await messenger
-          .sendText(
-            m.groupId ?? m.waId,
-            "Kshaminchandi 🙏 oka technical problem vachindi. Konchem sepu tarvata malli try cheyyandi.",
-            Boolean(m.groupId)
-          )
-          .catch((e) => logger.warn({ err: e }, "[cloud] failure notice not sent either"));
-      }
-    }
-
-    // Voice reply when the member spoke first OR asked for one in words
-    // ("voice lo cheppandi"), and never when they asked for text only. The text
-    // answer always goes out regardless — this only adds audio alongside it.
-    // Never allowed to fail the reply.
-    if (shouldSendVoiceReply(m.text, Boolean(m.audioId)) && sent.length > 0) {
-      await sendVoiceReply(m, messenger, sent[sent.length - 1]).catch((err) =>
-        logger.warn({ err, messageId: m.messageId }, "[speech] voice reply failed — text was sent")
-      );
+    logger.error({ err, messageId: m.messageId }, "[cloud] processMessage failed");
+    // If it threw before ANYTHING reached the member, they are staring at
+    // silence and cannot tell a crash from a slow answer. Say something —
+    // unless they have since opted out, when an apology is still one more
+    // message they asked not to receive.
+    if (delivered === 0 && !isDeliverySuppressed(m.waId)) {
+      await messenger
+        .sendText(
+          target,
+          "Kshaminchandi 🙏 oka technical problem vachindi. Konchem sepu tarvata malli try cheyyandi.",
+          isGroup
+        )
+        .catch((e) => logger.warn({ err: e }, "[cloud] failure notice not sent either"));
     }
   }
 }
@@ -323,32 +389,110 @@ async function transcribeInbound(
 }
 
 /**
- * Speak a reply back: rewrite for the ear, synthesize, transcode to the exact
- * OGG/Opus WhatsApp needs, upload, send. Every step is best-effort — the text
- * answer has already been delivered by the time this runs.
+ * Speak the answer, ahead of the text.
+ *
+ * Summarize for the ear, synthesize, transcode to the exact OGG/Opus WhatsApp
+ * needs for a playable voice-note bubble, upload, send. Returns whether the
+ * member actually heard something.
+ *
+ * Best-effort from end to end and bounded in time: the text reply is queued up
+ * behind this, so a wedged vendor must cost the member a voice note, never the
+ * answer itself. Every failure path returns false and the text follows normally.
  */
-async function sendVoiceReply(
-  m: InboundCloudMessage,
+async function speakAnswer(
+  replyText: string,
+  target: string,
+  isGroup: boolean,
+  userId: string,
   messenger: CloudMessenger,
-  replyText: string
-): Promise<void> {
-  if (!config.speech.enabled) return;
+  stopTyping: () => void
+): Promise<boolean> {
+  if (!config.speech.enabled) return false;
   const tts = resolveTts();
-  if (!tts || !messenger.uploadMedia || !messenger.sendAudio) return;
+  if (!tts || !messenger.uploadMedia || !messenger.sendAudio) return false;
 
-  const spoken = await toSpokenText(replyText);
-  if (!spoken) return;
+  const startedAt = Date.now();
+  try {
+    const built = await withTimeout(
+      buildVoiceNote(replyText, tts, messenger),
+      config.speech.buildTimeoutMs
+    );
+    if (!built) return false;
 
-  const raw = await tts.synthesize(spoken, detectLanguage(spoken));
+    // The member may have sent STOP or DELETE while we were synthesizing.
+    if (isDeliverySuppressed(userId)) {
+      logger.info({ userId }, "[speech] member opted out mid-build — not sending the voice note");
+      return false;
+    }
+
+    // Drop the indicator before the audio lands: WhatsApp dismisses it on send
+    // anyway, and a refresh arriving a moment later would show "typing…" over a
+    // voice note that is already on screen.
+    stopTyping();
+    await messenger.sendAudio!(target, built.mediaId, isGroup);
+    logger.info(
+      {
+        provider: built.provider,
+        bytes: built.bytes,
+        summarized: built.summarized,
+        ms: Date.now() - startedAt,
+      },
+      "[speech] voice reply sent ahead of the text"
+    );
+    return true;
+  } catch (err) {
+    logger.warn(
+      { err, ms: Date.now() - startedAt },
+      "[speech] voice reply failed — sending the text answer now"
+    );
+    return false;
+  }
+}
+
+interface BuiltVoiceNote {
+  mediaId: string;
+  provider: string;
+  bytes: number;
+  summarized: boolean;
+}
+
+/** Summarize → synthesize → transcode → upload. Null when there's nothing to send. */
+async function buildVoiceNote(
+  replyText: string,
+  tts: NonNullable<ReturnType<typeof resolveTts>>,
+  messenger: CloudMessenger
+): Promise<BuiltVoiceNote | null> {
+  const spoken = await buildSpokenText(replyText);
+  if (!spoken.text) return null;
+
+  const raw = await tts.synthesize(spoken.text, detectLanguage(spoken.text));
   const voice = await toWhatsAppVoice(raw);
-  const mediaId = await messenger.uploadMedia(voice.bytes, "audio/ogg", "reply.ogg");
-  if (!mediaId) return;
+  const mediaId = await messenger.uploadMedia!(voice.bytes, "audio/ogg", "reply.ogg");
+  if (!mediaId) return null;
 
-  await messenger.sendAudio(m.groupId ?? m.waId, mediaId, Boolean(m.groupId));
-  logger.info(
-    { provider: raw.provider ?? tts.name, bytes: voice.bytes.byteLength },
-    "[speech] voice reply sent"
-  );
+  return {
+    mediaId,
+    provider: raw.provider ?? tts.name,
+    bytes: voice.bytes.byteLength,
+    summarized: spoken.summarized,
+  };
+}
+
+/**
+ * Stop waiting after `ms`.
+ *
+ * Deliberately a race, not a cancellation: the vendor calls underneath carry
+ * their own timeouts, and there is no way to un-send an HTTP request already in
+ * flight. Whatever finishes late is simply discarded — the point is to bound
+ * how long the member waits for their text, not to save the work.
+ */
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const bell = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`voice note build exceeded ${ms}ms`)), ms);
+    timer.unref?.();
+  });
+  return Promise.race([work, bell]).finally(() => clearTimeout(timer));
 }
 
 /**

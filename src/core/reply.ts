@@ -43,7 +43,24 @@ export interface IncomingMessage {
 
 /** How the core sends a reply back — the transport binds this to its channel. */
 export interface Responder {
+  /**
+   * Send an interstitial: a consent notice, a rate-limit note, an off-topic
+   * redirect. Goes out immediately, on its own.
+   */
   send(text: string): Promise<void>;
+  /**
+   * Send THE answer — the one message this turn exists to deliver.
+   *
+   * Separate from `send` so a transport can treat it differently: the Cloud
+   * transport speaks it as a voice note before delivering the text, which it
+   * must not do for a "please try again in a minute". A transport that has no
+   * such distinction simply omits this and the core falls back to `send`.
+   *
+   * Must resolve only once the text has actually left, and must throw if it
+   * has not — the delivery ledger and the transport's failure notice both key
+   * off that.
+   */
+  sendFinal?(text: string): Promise<void>;
 }
 
 const rateLimiter = new RateLimiter(config.rateLimitPerMinute);
@@ -81,6 +98,31 @@ function sweepErased(): void {
   const now = Date.now();
   for (const [jid, exp] of recentlyErased) {
     if (now > exp) recentlyErased.delete(jid);
+  }
+}
+
+/**
+ * Must nothing at all be delivered to this user right now?
+ *
+ * True when they erased their data or opted out. Exported because the send is
+ * no longer instantaneous: a transport that spends half a minute building a
+ * voice note before it delivers has to re-ask this question on the way out,
+ * or a STOP that arrives during the build gets answered anyway.
+ */
+export function isDeliverySuppressed(userId: string): boolean {
+  return wasRecentlyErased(userId) || isOptedOut(userId);
+}
+
+/**
+ * Raised by a transport that stopped mid-delivery because the member opted out
+ * or erased their data while the reply was being prepared. Distinct from a send
+ * failure: nothing went wrong, so nobody should be told a technical problem
+ * occurred and nothing should be marked delivered.
+ */
+export class DeliverySuppressedError extends Error {
+  constructor() {
+    super("delivery suppressed — the member opted out or erased mid-flight");
+    this.name = "DeliverySuppressedError";
   }
 }
 
@@ -353,17 +395,27 @@ export async function processMessage(msg: IncomingMessage, res: Responder): Prom
   // Compliance re-check: a DELETE or STOP may have arrived WHILE this (older)
   // message was still generating. Sending now would deliver a reply after the
   // farmer asked to be erased/unsubscribed — so suppress the send in that case.
-  if (wasRecentlyErased(userId) || isOptedOut(userId)) {
+  // The transport re-checks again on its way out; see isDeliverySuppressed.
+  if (isDeliverySuppressed(userId)) {
     logger.info({ userId }, "User erased/opted-out mid-flight — suppressing reply");
     return;
   }
 
   try {
-    await res.send(response);
+    // The answer, not an interstitial — transports that voice their replies key
+    // off this. Falls back to plain send for transports that don't distinguish.
+    await (res.sendFinal ? res.sendFinal(response) : res.send(response));
     // Confirmed out the door. Synchronous and immediate — the row id is already
     // in hand, so nothing about this depends on background work completing.
     if (interactionId) markInteractionDelivered(interactionId);
   } catch (err) {
+    // The transport aborted on a STOP/DELETE that landed mid-delivery. That is
+    // the policy working, not a failure: swallow it so no caller apologises for
+    // a "technical problem" and the row stays honestly marked undelivered.
+    if (err instanceof DeliverySuppressedError) {
+      logger.info({ userId }, "Delivery suppressed by the transport mid-send");
+      return;
+    }
     logger.error({ err }, "Failed to send WhatsApp reply");
     // Rethrow. Swallowing this here is what turned a rejected 5252-char answer
     // into total silence for the member (2026-08-06): the transport's "say

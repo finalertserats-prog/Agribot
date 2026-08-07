@@ -22,6 +22,7 @@ vi.mock("../src/lib/database", () => ({
   getUser: vi.fn(() => EXISTING_USER),
   updateUserProfile: vi.fn(),
   saveInteraction: vi.fn(),
+  markInteractionDelivered: vi.fn(),
   getRecentInteractions: vi.fn(() => []),
   isOptedOut: vi.fn(() => false),
   setOptOut: vi.fn(),
@@ -34,9 +35,23 @@ vi.mock("../src/lib/memory", () => ({
   deleteUserMemories: vi.fn(async () => {}),
 }));
 
-import { processMessage, backgroundTasks, resetForTests, type IncomingMessage } from "../src/core/reply";
+import {
+  processMessage,
+  backgroundTasks,
+  resetForTests,
+  DeliverySuppressedError,
+  type IncomingMessage,
+} from "../src/core/reply";
 import { generateTextResponse, isFarmingTopic } from "../src/lib/gemini";
-import { setOptOut, deleteUserData, getUser, isOptedOut, getRecentInteractions } from "../src/lib/database";
+import {
+  setOptOut,
+  deleteUserData,
+  getUser,
+  isOptedOut,
+  getRecentInteractions,
+  saveInteraction,
+  markInteractionDelivered,
+} from "../src/lib/database";
 import { deleteUserMemories } from "../src/lib/memory";
 
 function incoming(text: string, over: Partial<IncomingMessage> = {}): IncomingMessage {
@@ -146,5 +161,85 @@ describe("processMessage — transport-agnostic core", () => {
     await drain();
     const { saveInteraction } = await import("../src/lib/database");
     expect(saveInteraction).toHaveBeenCalledOnce();
+  });
+});
+
+describe("processMessage — the answer is handed over as the answer", () => {
+  /** A transport that distinguishes the answer from an interstitial. */
+  function splitResponder() {
+    const calls: Array<{ kind: "send" | "sendFinal"; text: string }> = [];
+    return {
+      calls,
+      responder: {
+        send: async (text: string) => void calls.push({ kind: "send", text }),
+        sendFinal: async (text: string) => void calls.push({ kind: "sendFinal", text }),
+      },
+    };
+  }
+
+  // The Cloud transport speaks whatever comes through sendFinal. If the core
+  // routed the answer through plain send, voice replies would silently stop.
+  it("routes the model's answer through sendFinal", async () => {
+    const { calls, responder } = splitResponder();
+    await processMessage(incoming("how do I grow tomatoes?"), responder);
+
+    expect(calls).toContainEqual({ kind: "sendFinal", text: "Here is some farming advice 🌱" });
+  });
+
+  // "Please try again in a minute" must never be read aloud ahead of the thing
+  // the member actually asked for.
+  it("routes an interstitial through plain send, never sendFinal", async () => {
+    (getUser as any).mockReturnValueOnce(undefined); // first contact → consent notice
+    const { calls, responder } = splitResponder();
+    await processMessage(incoming("how do I grow tomatoes?"), responder);
+
+    const interstitials = calls.filter((c) => c.text !== "Here is some farming advice 🌱");
+    expect(interstitials.length).toBeGreaterThan(0);
+    for (const c of interstitials) expect(c.kind).toBe("send");
+  });
+
+  it("falls back to send for a transport that has no separate answer channel", async () => {
+    const { sent, responder } = capture();
+    await processMessage(incoming("how do I grow tomatoes?"), responder);
+    expect(sent).toContain("Here is some farming advice 🌱");
+  });
+
+  it("marks the interaction delivered once the answer is actually out", async () => {
+    (saveInteraction as any).mockReturnValueOnce(77);
+    const { responder } = splitResponder();
+    await processMessage(incoming("how do I grow tomatoes?"), responder);
+
+    expect(markInteractionDelivered).toHaveBeenCalledWith(77);
+  });
+
+  // The transport re-checks opt-out on the way out because building a voice
+  // note takes real time. When it refuses, nothing was delivered — and the
+  // ledger has to keep saying so.
+  it("does not mark delivered when the transport refuses on an opt-out", async () => {
+    (saveInteraction as any).mockReturnValueOnce(78);
+    const responder = {
+      send: async () => {},
+      sendFinal: async () => {
+        throw new DeliverySuppressedError();
+      },
+    };
+
+    await expect(
+      processMessage(incoming("how do I grow tomatoes?"), responder)
+    ).resolves.toBeUndefined();
+    expect(markInteractionDelivered).not.toHaveBeenCalled();
+  });
+
+  it("still rethrows a genuine send failure so the transport can react", async () => {
+    const responder = {
+      send: async () => {},
+      sendFinal: async () => {
+        throw new Error("WhatsApp Cloud sendText failed: 400");
+      },
+    };
+
+    await expect(processMessage(incoming("how do I grow tomatoes?"), responder)).rejects.toThrow(
+      /400/
+    );
   });
 });

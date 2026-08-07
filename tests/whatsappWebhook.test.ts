@@ -1,17 +1,49 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import crypto from "crypto";
 
-// Mock the reply core so dispatch tests don't touch DB/AI.
+// Mock the reply core so dispatch tests don't touch DB/AI. The suppression
+// helpers are real-shaped: the transport re-checks them on the way out, so a
+// stub that always allowed delivery would hide that gate entirely.
+const suppressed = new Set<string>();
 vi.mock("../src/core/reply", () => ({
   processMessage: vi.fn(async () => {}),
+  isDeliverySuppressed: (userId: string) => suppressed.has(userId),
+  DeliverySuppressedError: class DeliverySuppressedError extends Error {
+    constructor() {
+      super("delivery suppressed");
+      this.name = "DeliverySuppressedError";
+    }
+  },
 }));
 
 // Speech providers are resolved lazily from env; stub them so voice-path tests
-// exercise the webhook's own decisions rather than a vendor.
+// exercise the webhook's own decisions rather than a vendor. `ttsMock` is set
+// per-test — null means "no voice vendor configured", the default everywhere
+// except the voice-delivery suite below.
 const sttMock = { name: "test-stt", transcribe: vi.fn() };
+let ttsMock: { name: string; synthesize: ReturnType<typeof vi.fn> } | null = null;
 vi.mock("../src/lib/speech", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
-  return { ...actual, resolveStt: () => sttMock, resolveTts: () => null };
+  return { ...actual, resolveStt: () => sttMock, resolveTts: () => ttsMock };
+});
+
+// The spoken rewrite is an LLM call; the transcode shells out to ffmpeg. Both
+// are covered by their own suites — here they only need to be predictable.
+vi.mock("../src/lib/speech/spoken", () => ({
+  buildSpokenText: vi.fn(async () => ({ text: "spoken summary", summarized: true })),
+}));
+vi.mock("../src/lib/audio", () => ({
+  toWhatsAppVoice: vi.fn(async () => ({ bytes: new Uint8Array([1, 2, 3]), mimeType: "audio/ogg" })),
+}));
+
+// Voice is opt-in via env and unset under test; turn it on so the delivery
+// order is actually exercised rather than short-circuited at the master switch.
+vi.mock("../src/config", async (importOriginal) => {
+  const actual = (await importOriginal()) as { config: Record<string, any> };
+  return {
+    ...actual,
+    config: { ...actual.config, speech: { ...actual.config.speech, enabled: true } },
+  };
 });
 
 import {
@@ -380,5 +412,263 @@ describe("voice notes — never answer a transcript we did not understand", () =
     sttMock.transcribe.mockResolvedValueOnce({ text: "kura mokkalu ela pencali" });
     await dispatchInbound([{ ...voiceNote }], voiceMessenger(), new SeenCache(100));
     expect(processMessage).toHaveBeenCalledOnce();
+  });
+});
+
+describe("voice replies — the member hears the gist, then reads the detail", () => {
+  /** Every outbound, in the order it actually happened. */
+  let order: string[];
+
+  function speakingMessenger(): CloudMessenger {
+    order = [];
+    return {
+      sendText: vi.fn(async () => {
+        order.push("text");
+      }),
+      sendAudio: vi.fn(async () => {
+        order.push("audio");
+      }),
+      uploadMedia: vi.fn(async () => "MEDIA-1"),
+      fetchImage: vi.fn(async () => null),
+      fetchMedia: vi.fn(async () => ({ bytes: new Uint8Array([1, 2]), mimeType: "audio/ogg" })),
+      markReadAndTyping: vi.fn(async () => {
+        order.push("typing");
+      }),
+    } as CloudMessenger;
+  }
+
+  const voiceNote = {
+    waId: "91999",
+    name: "Ravi",
+    messageId: "wamid.VR",
+    text: "",
+    hasImage: false,
+    audioId: "AUDIO1",
+  };
+
+  /** Make the mocked core deliver `answer` the way the real one does. */
+  function coreAnswers(answer = "the full written answer"): void {
+    (processMessage as any).mockImplementationOnce(async (_msg: any, res: any) => {
+      await res.sendFinal(answer);
+    });
+  }
+
+  beforeEach(() => {
+    suppressed.clear();
+    ttsMock = {
+      name: "test-tts",
+      synthesize: vi.fn(async () => ({ bytes: new Uint8Array([9]), mimeType: "audio/wav" })),
+    };
+    sttMock.transcribe.mockResolvedValue({ text: "mamidi chettu ela pencali" });
+  });
+
+  // The whole point of the change: the member hears a summary within seconds,
+  // then the full text lands underneath for them to refer back to.
+  it("sends the voice note BEFORE the text answer", async () => {
+    const m = speakingMessenger();
+    coreAnswers();
+    await dispatchInbound([{ ...voiceNote }], m, new SeenCache(100));
+
+    expect(order.filter((o) => o !== "typing")).toEqual(["audio", "text"]);
+  });
+
+  it("shows the typing indicator before it even transcribes the voice note", async () => {
+    const m = speakingMessenger();
+    coreAnswers();
+    await dispatchInbound([{ ...voiceNote }], m, new SeenCache(100));
+
+    expect(order[0]).toBe("typing");
+    expect(sttMock.transcribe).toHaveBeenCalled();
+  });
+
+  it("speaks the answer, not the raw written reply", async () => {
+    const m = speakingMessenger();
+    coreAnswers();
+    await dispatchInbound([{ ...voiceNote }], m, new SeenCache(100));
+
+    expect(ttsMock!.synthesize).toHaveBeenCalledWith("spoken summary", expect.any(String));
+    expect(m.uploadMedia).toHaveBeenCalledWith(expect.any(Uint8Array), "audio/ogg", "reply.ogg");
+    expect(m.sendAudio).toHaveBeenCalledWith("91999", "MEDIA-1", false);
+  });
+
+  // An interstitial is not the answer. "Please try again in a minute" read
+  // aloud, ahead of the thing they asked for, is worse than no voice at all.
+  it("never voices an interstitial", async () => {
+    const m = speakingMessenger();
+    (processMessage as any).mockImplementationOnce(async (_msg: any, res: any) => {
+      await res.send("One moment please — I'm catching up on messages.");
+    });
+    await dispatchInbound([{ ...voiceNote }], m, new SeenCache(100));
+
+    expect(m.sendAudio).not.toHaveBeenCalled();
+    expect(m.sendText).toHaveBeenCalledOnce();
+  });
+
+  it("stays silent in audio when the member typed their question", async () => {
+    const m = speakingMessenger();
+    coreAnswers();
+    await dispatchInbound(
+      [{ waId: "91999", name: "Ravi", messageId: "wamid.TXT", text: "hi", hasImage: false }],
+      m,
+      new SeenCache(100)
+    );
+
+    expect(m.sendAudio).not.toHaveBeenCalled();
+    expect(m.sendText).toHaveBeenCalledOnce();
+  });
+});
+
+describe("voice replies — a broken voice pipeline must never cost the answer", () => {
+  function speakingMessenger(): CloudMessenger {
+    return {
+      sendText: vi.fn(async () => {}),
+      sendAudio: vi.fn(async () => {}),
+      uploadMedia: vi.fn(async () => "MEDIA-1"),
+      fetchImage: vi.fn(async () => null),
+      fetchMedia: vi.fn(async () => ({ bytes: new Uint8Array([1, 2]), mimeType: "audio/ogg" })),
+      markReadAndTyping: vi.fn(async () => {}),
+    } as CloudMessenger;
+  }
+
+  const voiceNote = {
+    waId: "91999",
+    name: "Ravi",
+    messageId: "wamid.VF",
+    text: "",
+    hasImage: false,
+    audioId: "AUDIO1",
+  };
+
+  function coreAnswers(answer = "the full written answer"): void {
+    (processMessage as any).mockImplementationOnce(async (_msg: any, res: any) => {
+      await res.sendFinal(answer);
+    });
+  }
+
+  beforeEach(() => {
+    suppressed.clear();
+    ttsMock = {
+      name: "test-tts",
+      synthesize: vi.fn(async () => ({ bytes: new Uint8Array([9]), mimeType: "audio/wav" })),
+    };
+    sttMock.transcribe.mockResolvedValue({ text: "mamidi chettu ela pencali" });
+  });
+
+  it("sends the text anyway when synthesis throws", async () => {
+    const m = speakingMessenger();
+    ttsMock!.synthesize.mockRejectedValueOnce(new Error("Sarvam 402: out of credit"));
+    coreAnswers("the full written answer");
+    await dispatchInbound([{ ...voiceNote }], m, new SeenCache(100));
+
+    expect(m.sendAudio).not.toHaveBeenCalled();
+    expect(m.sendText).toHaveBeenCalledWith("91999", "the full written answer", false);
+  });
+
+  it("sends the text anyway when the upload comes back empty", async () => {
+    const m = speakingMessenger();
+    (m.uploadMedia as any).mockResolvedValueOnce(null);
+    coreAnswers();
+    await dispatchInbound([{ ...voiceNote }], m, new SeenCache(100));
+
+    expect(m.sendAudio).not.toHaveBeenCalled();
+    expect(m.sendText).toHaveBeenCalledOnce();
+  });
+
+  it("sends the text anyway when no voice vendor is configured", async () => {
+    const m = speakingMessenger();
+    ttsMock = null;
+    coreAnswers();
+    await dispatchInbound([{ ...voiceNote }], m, new SeenCache(100));
+
+    expect(m.sendAudio).not.toHaveBeenCalled();
+    expect(m.sendText).toHaveBeenCalledOnce();
+  });
+
+  // The member just heard a voice note. Apologising for a technical problem on
+  // top of it reads as two bots talking over each other.
+  it("does not apologise for a failed text when the voice note already landed", async () => {
+    const m = speakingMessenger();
+    (m.sendText as any).mockRejectedValueOnce(new Error("WhatsApp Cloud sendText failed: 400"));
+    coreAnswers();
+    await dispatchInbound([{ ...voiceNote }], m, new SeenCache(100));
+
+    expect(m.sendAudio).toHaveBeenCalledOnce();
+    expect(m.sendText).toHaveBeenCalledOnce(); // the failed one, and no apology after it
+  });
+
+  it("still apologises when nothing at all reached the member", async () => {
+    const m = speakingMessenger();
+    ttsMock!.synthesize.mockRejectedValueOnce(new Error("no voice"));
+    (m.sendText as any).mockRejectedValueOnce(new Error("send failed"));
+    coreAnswers();
+    await dispatchInbound([{ ...voiceNote }], m, new SeenCache(100));
+
+    expect(m.sendText).toHaveBeenCalledTimes(2);
+    expect((m.sendText as any).mock.calls[1][1]).toMatch(/Kshaminchandi/);
+  });
+
+  // Transcription takes seconds and this notice is transport-owned — it never
+  // passes the core's consent gate, so nothing else would stop it.
+  it("stays silent about a bad transcript when the member opted out meanwhile", async () => {
+    const m = speakingMessenger();
+    sttMock.transcribe.mockImplementationOnce(async () => {
+      suppressed.add("91999"); // STOP lands while we are listening
+      return { text: "x" }; // too short to act on → the failure notice path
+    });
+
+    await dispatchInbound([{ ...voiceNote }], m, new SeenCache(100));
+    expect(m.sendText).not.toHaveBeenCalled();
+  });
+
+  it("does not apologise to a member who opted out mid-answer", async () => {
+    const m = speakingMessenger();
+    ttsMock!.synthesize.mockRejectedValueOnce(new Error("no voice"));
+    (processMessage as any).mockImplementationOnce(async () => {
+      suppressed.add("91999");
+      throw new Error("model blew up");
+    });
+
+    await dispatchInbound([{ ...voiceNote }], m, new SeenCache(100));
+    expect(m.sendText).not.toHaveBeenCalled();
+  });
+
+  // A webhook payload can carry several messages. One member's bad luck must
+  // not cost every member behind them in the batch their answer.
+  it("keeps processing the batch when one message blows up", async () => {
+    const m = speakingMessenger();
+    (processMessage as any)
+      .mockImplementationOnce(async () => {
+        throw new Error("boom");
+      })
+      .mockImplementationOnce(async (_msg: any, res: any) => {
+        await res.sendFinal("the second member's answer");
+      });
+
+    await dispatchInbound(
+      [
+        { waId: "91111", name: "A", messageId: "wamid.B1", text: "hi", hasImage: false },
+        { waId: "92222", name: "B", messageId: "wamid.B2", text: "hi", hasImage: false },
+      ],
+      m,
+      new SeenCache(100)
+    );
+
+    expect(processMessage).toHaveBeenCalledTimes(2);
+    expect(m.sendText).toHaveBeenCalledWith("92222", "the second member's answer", false);
+  });
+
+  // Building a voice note takes real seconds. A STOP that arrives during it is
+  // still a STOP — the reply it was already working on must not go out.
+  it("delivers nothing when the member opts out while the voice note is building", async () => {
+    const m = speakingMessenger();
+    ttsMock!.synthesize.mockImplementationOnce(async () => {
+      suppressed.add("91999"); // STOP lands mid-synthesis
+      return { bytes: new Uint8Array([9]), mimeType: "audio/wav" };
+    });
+    coreAnswers();
+    await dispatchInbound([{ ...voiceNote }], m, new SeenCache(100));
+
+    expect(m.sendAudio).not.toHaveBeenCalled();
+    expect(m.sendText).not.toHaveBeenCalled();
   });
 });

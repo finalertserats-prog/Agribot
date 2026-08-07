@@ -117,6 +117,16 @@ const envSchema = z
   // Azure Speech (alternative Indic engine; region is required alongside the key).
   AZURE_SPEECH_KEY: z.preprocess(blankToUndef, z.string().min(1).optional()),
   AZURE_SPEECH_REGION: z.preprocess(blankToUndef, z.string().min(1).optional()),
+  // How much of an answer the voice note may carry, in characters of SPOKEN
+  // text. Roughly 11-12 chars per second at pace 0.95, so 1500 ≈ 2:10 — long
+  // enough to actually explain something, short enough that a grower standing
+  // in a garden will listen to the end. Anything longer than this is summarized
+  // for the ear rather than truncated. Hard-capped by Sarvam's own 2500 ceiling.
+  VOICE_MAX_SPOKEN_CHARS: z.coerce.number().min(200).max(2400).default(1500),
+  // Ceiling on the whole build-the-voice-note step (summarize → synthesize →
+  // transcode → upload). The text reply waits behind it, so this is the longest
+  // the member can be kept waiting for audio before we give up and send text.
+  VOICE_BUILD_TIMEOUT_MS: z.coerce.number().min(5_000).max(180_000).default(75_000),
   })
   .refine((e) => resolveProviderName(e) !== null, {
     message:
@@ -227,6 +237,8 @@ export const config = {
     sttSarvamModel: env.SARVAM_STT_MODEL,
     azureKey: env.AZURE_SPEECH_KEY,
     azureRegion: env.AZURE_SPEECH_REGION,
+    maxSpokenChars: env.VOICE_MAX_SPOKEN_CHARS,
+    buildTimeoutMs: env.VOICE_BUILD_TIMEOUT_MS,
   },
   // Official WhatsApp Cloud API transport (1:1 only). null => Baileys-only.
   cloud: resolveCloudConfig(env),
