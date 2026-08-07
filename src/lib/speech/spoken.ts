@@ -84,16 +84,21 @@ export function trimToSentence(text: string, limit: number): string {
   return (lastSpace > limit * 0.5 ? window.slice(0, lastSpace) : window).trim();
 }
 
-const REWRITE_PROMPT = `Rewrite the following WhatsApp reply so it can be READ ALOUD by a text-to-speech voice for a Telugu-speaking gardener.
+const REWRITE_PROMPT = `Rewrite the following WhatsApp reply so it can be READ ALOUD by a text-to-speech voice for a Telugu-speaking gardener. Keep everything it says — this is a change of form, not of content.
 
-Rules:
+Language and content:
 - If the reply is Telugu written in English letters (e.g. "mee tomato lo leaf miner undi"), rewrite that Telugu in TELUGU SCRIPT.
 - Keep genuine English technical terms in English (cultivar names, "leaf miner", "NPK 19:19:19", "pH 6.5", units).
 - Keep every number, dose, dilution and interval exactly as given. Do not round, drop or invent any figure.
+- Do not add, explain or summarise anything.
+
+Make it sound like a person talking, not a document being read out:
+- Written answers are full of headings and numbered sections. Spoken, "Pruning. Tip prune at one metre." lands as two stubs. Fold each heading into the sentence it introduces — "pruning విషయానికి వస్తే, ఒక మీటర్ దగ్గర tip prune చేయండి" / "for pruning, tip prune at one metre".
+- Join the steps into connected speech with ordinals and connectives: "mundu ... , taruvata ... , chivaraga ..." / "first ... , then ... , after that ...". Never read out numbering, bullets, dashes or colons.
+- Expand symbols into spoken words where a voice would stumble (a ratio, a per, a percent).
 - Remove emoji, asterisks, bullet characters and any other on-screen formatting.
-- Expand symbols into spoken words where a voice would stumble (":" in a ratio, "/", "%").
-- Do not add, explain or summarise anything. Same content, spoken form.
-- Reply with ONLY the rewritten text.
+
+Reply with ONLY the rewritten text.
 
 Reply to rewrite:
 `;

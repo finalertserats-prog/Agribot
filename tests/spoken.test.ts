@@ -85,6 +85,20 @@ describe("buildSpokenText — a short reply is spoken as-is", () => {
     expect(out.text).not.toContain(HANDOFF_TE);
   });
 
+  // A written answer is full of headings. Spoken verbatim, "Pruning. Tip prune
+  // at one metre." lands as two stubs — which is what made the voice sound
+  // robotic even when nothing had been cut.
+  it("asks for connected speech, not a document read aloud", async () => {
+    generateText.mockResolvedValue("మీ tomato లో leaf miner ఉంది.");
+    await buildSpokenText("Pruning. Tip prune at 1 m. IPM. Neem oil 5 ml per litre.");
+
+    const prompt = generateText.mock.calls[0][0];
+    expect(prompt).toMatch(/Fold each heading into the sentence it introduces/);
+    expect(prompt).toMatch(/Never read out numbering, bullets, dashes or colons/);
+    // ...without licensing the model to drop anything on the way.
+    expect(prompt).toMatch(/Do not add, explain or summarise anything/);
+  });
+
   it("hands the whole reply to the model rather than a prefix of it", async () => {
     generateText.mockResolvedValue("సరే అండి.");
     await buildSpokenText("mee tomato lo leaf miner undi, repeat every 7 days.");
