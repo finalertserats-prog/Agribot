@@ -110,7 +110,7 @@ Language and content:
 Make it sound like a person talking, not a document being read out:
 - Written answers are full of headings and numbered sections. Spoken, "Pruning. Tip prune at one metre." lands as two stubs. Fold each heading into the sentence it introduces — "pruning విషయానికి వస్తే, ఒక మీటర్ దగ్గర tip prune చేయండి" / "for pruning, tip prune at one metre".
 - Join the steps into connected speech with ordinals and connectives: "mundu ... , taruvata ... , chivaraga ..." / "first ... , then ... , after that ...". Never read out numbering, bullets, dashes or colons.
-- Expand symbols into spoken words where a voice would stumble (a ratio, a per, a percent).
+- Say symbols the way a person says them out loud, never by naming the symbol. "NPK 19:19:19" is spoken "NPK nineteen nineteen nineteen"; "5 g/L" is "five grams per litre"; "40%" is "forty percent"; "6-8 inches" is "six to eight inches". Never say the words "colon", "slash" or "a ratio".
 - Remove emoji, asterisks, bullet characters and any other on-screen formatting.
 
 Reply with ONLY the rewritten text.
@@ -148,7 +148,7 @@ Language and sound:
 - Keep real English horticultural terms in English: cultivar names, "leaf miner", "NPK 19:19:19", "pH 6.5", "drip", units.
 - Write flowing, connected speech, the way one experienced grower explains something to another. Full sentences that run into each other naturally.
 - Where the answer has steps, keep the ORDER but speak it: "mundu ... , taruvata ... , chivaraga ..." / "first ... , then ... , finally ...". Never say "point one", never read out numbering, never use bullets, dashes, colons or headings.
-- Say symbols as words: a ratio, a per, a percent. Never leave ":" or "/" to be read aloud.
+- Say symbols the way a person says them out loud, never by naming the symbol. "NPK 19:19:19" is spoken "NPK nineteen nineteen nineteen"; "5 g/L" is "five grams per litre"; "40%" is "forty percent". Never say the words "colon", "slash" or "a ratio".
 
 What must survive, in this order of priority:
 1. What the problem or answer actually is — the diagnosis or the direct answer to what they asked.
