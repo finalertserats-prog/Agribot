@@ -3,6 +3,30 @@
 Master map of project knowledge. Load this first at session start.
 
 ## Sessions
+- [2026-08-07 — Voice first, and the summary that kept stopping halfway](sessions/2026-08-07-voice-first-delivery-and-the-summary-that-stopped-halfway.md)
+  — reshaped the voice conversation end to end (`888e234`…`cfea1e1`, all live, 439 tests). The
+  voice note now lands **BEFORE** the text via a new `Responder.sendFinal` that separates THE
+  answer from interstitials (a rate-limit notice must never be read aloud ahead of the answer);
+  the typing indicator is **kept alive** by re-posting every 20s (WhatsApp expires it at 25s) and
+  now starts BEFORE transcription; and the note is a real **summary** instead of
+  `slice(0, 900)` — the reason audio used to stop dead in section two, heard the varieties, never
+  the dose. Budget 900 → **2400 chars** (~11.8 chars/sec, measured), so most answers now fall
+  under it and are spoken IN FULL with nothing dropped.
+  **The big lesson, worth four rounds of failure: one summarization pass cannot cover a long
+  answer, and it is NOT a prompt problem.** `finish_reason` is `"stop"` with 1632 of 1800 chars
+  used — the model *chooses* to stop after section seven; a control prompt ("point 8 must be
+  neem oil") omitted point 8 too. Fixed structurally: `summarizeInHalves` runs a pass per half
+  **concurrently**, so the tail cannot be crowded out by the opening. Also: a full stop inside
+  "మి.లీ" is not a sentence end; trim the opening first and give the closing the remainder;
+  never illustrate a prompt rule with a phrase the model can copy (it literally spoke
+  "NPK నైన్టీన్ **a ratio** నైన్టీన్"). Compliance holds across the longer window — opt-out is
+  re-checked before the audio and before the text.
+  Every one of those defects passed 439 unit tests and was caught only by probing the DEPLOYED
+  build against real vendors. **OPEN: the user must pick voice sample A/B/C** (temperature 0.5 /
+  0.2 / 0.1, sent to their WhatsApp) — they find the 2-min note "varied and artificial" vs a
+  10.5s clip. That clip is the SAME voice (41,697 B = `anand`, sample #4, byte-exact) — the
+  difference is length and code-switching, not the speaker, so do not go hunting for a new one.
+  Sarvam is **nondeterministic even at temperature 0.01**, so parameter A/Bs must be by ear.
 - [2026-08-06 — Sarvam key, and the answer a member never received](sessions/2026-08-06-sarvam-key-and-the-lost-answer.md)
   — deployed `SARVAM_API_KEY`; it AUTHENTICATES but the account has **zero credits** (402 on
   every call; 403 would mean a bad key), so Telugu voice + Sarvam STT stay dormant until topped
