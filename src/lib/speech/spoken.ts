@@ -110,8 +110,21 @@ Reply to rewrite:
  * member needed. What must survive is spelled out explicitly rather than left
  * to the model's sense of importance.
  */
-function summaryPrompt(budget: number): string {
-  return `You are turning a long written gardening answer into a spoken voice note for a Telugu-speaking home gardener who is standing in their garden, listening on a phone. The full written answer is being sent to them as a text message straight afterwards, so the voice note is the briefing, not the document.
+type Part = "whole" | "first" | "second";
+
+/** What the model needs to know about where its slice sits in the answer. */
+const PART_BRIEF: Record<Part, string> = {
+  whole: "Below is the whole written answer.",
+  first:
+    "Below is the FIRST HALF of a longer written answer. Another voice note segment covers the second half and will be spoken immediately after yours, so open the way the answer opens, and do NOT write any closing or sign-off — your text runs straight into the next part.",
+  second:
+    "Below is the SECOND HALF of a longer written answer. The first half has already been spoken, so do NOT greet the listener, do NOT re-introduce the topic and do NOT recap what came before. Continue mid-explanation, as the same person still talking. Do not write a closing line about the text message either; that is added afterwards.",
+};
+
+function summaryPrompt(budget: number, part: Part): string {
+  return `You are turning a written gardening answer into a spoken voice note for a Telugu-speaking home gardener who is standing in their garden, listening on a phone. The full written answer is being sent to them as a text message straight afterwards, so the voice note is the briefing, not the document.
+
+${PART_BRIEF[part]}
 
 Write what should be SAID.
 
@@ -147,6 +160,78 @@ Reply with ONLY the spoken text.
 
 The written answer:
 `;
+}
+
+/**
+ * Split the answer near its middle, preferring a paragraph seam and falling
+ * back to a sentence. Paragraph breaks are already "." by the time
+ * stripForSpeech has run, so this works on sentence boundaries either way.
+ */
+export function splitInHalf(text: string): [string, string] {
+  const mid = Math.floor(text.length / 2);
+  // Walk outwards from the midpoint for the nearest sentence end, so neither
+  // half opens or closes on a fragment.
+  for (let offset = 0; offset < text.length / 2; offset++) {
+    for (const i of [mid - offset, mid + offset]) {
+      if (i > 0 && i < text.length - 1 && SENTENCE_END.test(text[i])) {
+        return [text.slice(0, i + 1).trim(), text.slice(i + 1).trim()];
+      }
+    }
+  }
+  return [text.slice(0, mid).trim(), text.slice(mid).trim()];
+}
+
+/**
+ * One model pass, with the deterministic strip as the floor.
+ *
+ * `fallback` is what to use when the model refuses, errors, or hands back a
+ * preamble instead of the text — never nothing, because this sits on the path
+ * to a member who is already waiting.
+ */
+async function runPass(prompt: string, source: string, fallback: string): Promise<string> {
+  try {
+    const cleaned = stripForSpeech(await getProvider().generateText(prompt + source));
+    if (cleaned.length < Math.min(20, source.length / 2)) {
+      logger.warn(
+        { chars: cleaned.length },
+        "[speech] spoken pass looked degenerate — using the stripped original"
+      );
+      return fallback;
+    }
+    return cleaned;
+  } catch (err) {
+    logger.warn({ err }, "[speech] spoken pass failed — using the stripped original");
+    return fallback;
+  }
+}
+
+/**
+ * Summarize the answer in two halves, concurrently, and join them.
+ *
+ * One pass over the whole answer does not work, and the reason is not length.
+ * Measured on the VPS (2026-08-07): given an eight-section answer the model
+ * hits the character target almost exactly but spends it on sections one to
+ * seven, then writes "finally, IPM" and stops — leaving the neem oil dose and
+ * the pre-harvest interval unsaid. `finish_reason` is "stop", so nothing is
+ * being truncated; it simply under-serves the tail. Restating the priority,
+ * demanding per-section beats and raising the budget all failed to change it.
+ *
+ * Giving each half its own pass makes coverage structural rather than something
+ * we ask for: the second half cannot be crowded out by the first, because the
+ * first is not in the room. The two calls run concurrently, so this costs an
+ * API call but no extra waiting.
+ */
+async function summarizeInHalves(source: string, speechBudget: number): Promise<string> {
+  const [first, second] = splitInHalf(source);
+  // No seam worth splitting on (a single blob) — one pass is all there is.
+  if (!second) return runPass(summaryPrompt(speechBudget, "whole"), first, source);
+
+  const half = Math.floor(speechBudget / 2);
+  const [a, b] = await Promise.all([
+    runPass(summaryPrompt(half, "first"), first, first),
+    runPass(summaryPrompt(half, "second"), second, second),
+  ]);
+  return `${trimToSentence(a, half)} ${trimToSentence(b, speechBudget - half)}`.trim();
 }
 
 export interface SpokenResult {
@@ -186,27 +271,10 @@ export async function buildSpokenText(reply: string): Promise<SpokenResult> {
     );
   }
   const source = needsSummary ? stripped.slice(0, MAX_SUMMARY_INPUT_CHARS) : stripped;
-  const prompt = needsSummary ? summaryPrompt(speechBudget) : REWRITE_PROMPT;
 
-  let candidate: string;
-  try {
-    const out = await getProvider().generateText(prompt + source);
-    const cleaned = stripForSpeech(out);
-    // A result that collapses to almost nothing means the model refused or
-    // returned a preamble instead of the text — prefer the deterministic strip.
-    if (cleaned.length < Math.min(20, source.length / 2)) {
-      logger.warn(
-        { summarize: needsSummary, chars: cleaned.length },
-        "[speech] spoken rewrite looked degenerate — using the stripped original"
-      );
-      candidate = stripped;
-    } else {
-      candidate = cleaned;
-    }
-  } catch (err) {
-    logger.warn({ err }, "[speech] spoken rewrite failed — using the stripped original");
-    candidate = stripped;
-  }
+  const candidate = needsSummary
+    ? await summarizeInHalves(source, speechBudget)
+    : await runPass(REWRITE_PROMPT, source, source);
 
   // Every path lands here, including a model that blew straight past the length
   // it was given — the trim is what actually enforces the budget.

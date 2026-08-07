@@ -5,7 +5,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const generateText = vi.fn<(prompt: string) => Promise<string>>();
 vi.mock("../src/lib/llm", () => ({ getProvider: () => ({ generateText }) }));
 
-import { buildSpokenText, stripForSpeech, trimToSentence } from "../src/lib/speech/spoken";
+import {
+  buildSpokenText,
+  splitInHalf,
+  stripForSpeech,
+  trimToSentence,
+} from "../src/lib/speech/spoken";
 import { config } from "../src/config";
 
 /** The sign-off is fixed text; match on a distinctive fragment of each. */
@@ -21,6 +26,19 @@ function longReply(): string {
     "Go only for dwarf grafted varieties like Amrapali or Mallika. " +
     "Spray neem oil 5 ml plus mild soap 1 ml per litre at dusk, repeat every 7 days. "
   ).repeat(20);
+}
+
+/**
+ * Over budget, with a distinctly-labelled opening and closing so a test can
+ * tell which end of the answer actually reached a model.
+ */
+function distinctSectionReply(): string {
+  return [
+    "ALPHA-OPENING. Terrace mango works great in Hyderabad.",
+    "Go only for dwarf grafted varieties like Amrapali or Mallika. ".repeat(22),
+    "Feed NPK 19:19:19 at 5 g per litre monthly through the growth flush. ".repeat(22),
+    "OMEGA-CLOSING. Spray neem oil 5 ml per litre at dusk and observe a 7 day pre-harvest interval.",
+  ].join("\n\n");
 }
 
 beforeEach(() => {
@@ -112,13 +130,14 @@ describe("buildSpokenText — a long reply is summarized, not truncated", () => 
   // heard the varieties but never the dose.
   it("summarizes from the FULL answer, not a truncated prefix of it", async () => {
     generateText.mockResolvedValue("సంక్షిప్త సమాధానం. Neem oil 5 ml per litre.");
-    const reply = longReply();
+    const reply = distinctSectionReply();
     await buildSpokenText(reply);
 
-    const prompt = generateText.mock.calls[0][0];
-    expect(prompt).toMatch(/voice note is the briefing/);
-    // The tail of the answer has to be in the prompt, or it cannot be summarized.
-    expect(prompt).toContain(reply.slice(-60));
+    const prompts = generateText.mock.calls.map((c) => c[0]).join("\n");
+    expect(prompts).toMatch(/voice note is the briefing/);
+    // Both ends of the answer have to reach a model, or they cannot be spoken.
+    expect(prompts).toContain("ALPHA-OPENING");
+    expect(prompts).toContain("OMEGA-CLOSING");
   });
 
   it("closes with the sign-off pointing at the text below", async () => {
@@ -154,6 +173,84 @@ describe("buildSpokenText — a long reply is summarized, not truncated", () => 
     const prompt = generateText.mock.calls[0][0];
     expect(prompt).toMatch(/Reserve room for those before you write a word/);
     expect(prompt).toMatch(/never a dose, an interval or a warning/);
+  });
+});
+
+describe("buildSpokenText — coverage of the tail is structural, not requested", () => {
+  // Asking one pass to cover everything measurably does not work: the model
+  // hits the length target, spends it on the opening sections, and stops. The
+  // second half gets its own pass so it cannot be crowded out by the first.
+  it("summarizes each half of a long answer in its own pass", async () => {
+    generateText.mockResolvedValue("సంక్షిప్త సమాధానం.");
+    await buildSpokenText(distinctSectionReply());
+
+    expect(generateText).toHaveBeenCalledTimes(2);
+    const [firstPass, secondPass] = generateText.mock.calls.map((c) => c[0]);
+    expect(firstPass).toContain("ALPHA-OPENING");
+    expect(firstPass).not.toContain("OMEGA-CLOSING");
+    expect(secondPass).toContain("OMEGA-CLOSING");
+    expect(secondPass).not.toContain("ALPHA-OPENING");
+  });
+
+  // Two segments spoken back to back must sound like one person still talking.
+  it("tells the second pass not to greet or recap", async () => {
+    generateText.mockResolvedValue("సంక్షిప్త సమాధానం.");
+    await buildSpokenText(distinctSectionReply());
+
+    const secondPass = generateText.mock.calls[1][0];
+    expect(secondPass).toMatch(/do NOT greet the listener/);
+    expect(secondPass).toMatch(/Continue mid-explanation/);
+    expect(generateText.mock.calls[0][0]).toMatch(/do NOT write any closing or sign-off/);
+  });
+
+  it("speaks both halves, in order", async () => {
+    generateText
+      .mockResolvedValueOnce("First half spoken here.")
+      .mockResolvedValueOnce("Second half spoken here.");
+    const out = await buildSpokenText(distinctSectionReply());
+
+    expect(out.text).toContain("First half spoken here.");
+    expect(out.text).toContain("Second half spoken here.");
+    expect(out.text.indexOf("First half")).toBeLessThan(out.text.indexOf("Second half"));
+  });
+
+  // One vendor hiccup must cost that half's polish, not the whole voice note.
+  it("keeps the good half when the other pass fails", async () => {
+    generateText
+      .mockRejectedValueOnce(new Error("vendor blip"))
+      .mockResolvedValueOnce("Second half spoken here.");
+    const out = await buildSpokenText(distinctSectionReply());
+
+    expect(out.text).toContain("Second half spoken here.");
+    expect(out.text).toContain("ALPHA-OPENING"); // the failed half fell back to the source
+  });
+
+  // A single short reply must not pay for two calls.
+  it("uses one pass for a reply that fits", async () => {
+    generateText.mockResolvedValue("మీ tomato లో leaf miner ఉంది.");
+    await buildSpokenText("mee tomato lo leaf miner undi.");
+    expect(generateText).toHaveBeenCalledOnce();
+  });
+});
+
+describe("splitInHalf — neither half may open or close on a fragment", () => {
+  it("splits at the sentence boundary nearest the middle", () => {
+    expect(splitInHalf("One two three. Four five six.")).toEqual([
+      "One two three.",
+      "Four five six.",
+    ]);
+  });
+
+  it("keeps every character across the two halves", () => {
+    const text = "Alpha beta. Gamma delta. Epsilon zeta. Eta theta.";
+    const [a, b] = splitInHalf(text);
+    expect(`${a} ${b}`).toBe(text);
+  });
+
+  it("still splits text that has no sentence ends at all", () => {
+    const [a, b] = splitInHalf("alpha beta gamma delta");
+    expect(a.length).toBeGreaterThan(0);
+    expect(b.length).toBeGreaterThan(0);
   });
 });
 
