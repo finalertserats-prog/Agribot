@@ -118,11 +118,18 @@ const envSchema = z
   AZURE_SPEECH_KEY: z.preprocess(blankToUndef, z.string().min(1).optional()),
   AZURE_SPEECH_REGION: z.preprocess(blankToUndef, z.string().min(1).optional()),
   // How much of an answer the voice note may carry, in characters of SPOKEN
-  // text. Measured at ~11.8 chars per second at pace 0.95, so 1800 ≈ 2:30 — long
-  // enough to actually explain something, short enough that a grower standing
-  // in a garden will listen to the end. Anything longer than this is summarized
-  // for the ear rather than truncated. Hard-capped by Sarvam's own 2500 ceiling.
-  VOICE_MAX_SPOKEN_CHARS: z.coerce.number().min(200).max(2400).default(1800),
+  // text. Measured at ~11.8 chars per second at pace 0.95, so 2400 ≈ 3:20.
+  //
+  // Set to the ceiling deliberately (2026-08-07): losing content off the end of
+  // the answer is the failure that actually hurt, and length is the only lever
+  // that removes it rather than mitigating it. The second effect matters more
+  // than the first — most real answers now fall UNDER this, which skips
+  // summarization entirely and speaks them in full, so nothing is dropped at
+  // all. Only genuinely long answers still get summarized.
+  //
+  // 2400 is the hard maximum, not a preference: Sarvam's bulbul:v3 rejects
+  // input over 2500 characters, and the sign-off is appended inside this budget.
+  VOICE_MAX_SPOKEN_CHARS: z.coerce.number().min(200).max(2400).default(2400),
   // Ceiling on the whole build-the-voice-note step (summarize → synthesize →
   // transcode → upload). The text reply waits behind it, so this is the longest
   // the member can be kept waiting for audio before we give up and send text.
