@@ -133,13 +133,13 @@ What to leave for the text:
 - Background theory and the "why it works" explanations.
 - Long lists of alternatives — name the best one or two and move on.
 
-How to work through it — follow this literally:
-- FIRST, before writing anything, count the sections, steps or numbered points in the written answer. Call that number N.
-- You have about ${Math.round(budget * 0.85)} characters in total and must never exceed ${budget}. Divide that by N. That is roughly what each section gets — usually one or two sentences each.
-- Then write ONE beat for EVERY section, in the answer's own order, from the first to the LAST. Every section gets a beat, including the final one.
-- If you are running out of room, make the remaining beats shorter. Do NOT stop early and do NOT skip the ones at the end.
+How to allocate your length — follow this literally, because getting it wrong is the main way this task fails:
+- You have about ${Math.round(budget * 0.85)} characters in total and must never exceed ${budget}. That is not enough for every section at full depth, so allocate deliberately instead of writing until you run out.
+- FIRST read the whole answer to the end and find the parts that tell the listener what to DO: doses, dilutions, spray timings, repeat intervals, feeding rates, and any safety or pre-harvest warning. In a long answer these usually sit in the LAST sections. Reserve room for those before you write a word, and give their numbers exactly.
+- THEN spend what is left on the earlier descriptive sections — variety names, container size, soil mix ratios — at one short clause each. These are reference material; the member can read them.
+- Finally deliver it all in the answer's own order so it still flows as one explanation.
 
-This matters more than polish. Left to itself a summary explains the opening sections beautifully, runs out of room around the middle, and simply stops — so the pest doses, the spray intervals and the safety warnings that live at the END of the answer are never spoken, and those are usually what the listener most needed. A shallow beat on every section beats a rich account of the first half. Where you do give a quantity, give it exactly — a half-said dose is worse than an unsaid one.
+Left to itself a summary explains the opening sections beautifully, runs out of room in the middle and simply stops, so the doses and the safety warnings at the end are never spoken — and those are the part the listener most needed. If something has to go, drop a variety name or a soil percentage, never a dose, an interval or a warning.
 
 Do NOT write any closing line about the text message; that is added afterwards. End on a complete sentence.
 

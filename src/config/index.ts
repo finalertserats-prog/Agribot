@@ -118,11 +118,11 @@ const envSchema = z
   AZURE_SPEECH_KEY: z.preprocess(blankToUndef, z.string().min(1).optional()),
   AZURE_SPEECH_REGION: z.preprocess(blankToUndef, z.string().min(1).optional()),
   // How much of an answer the voice note may carry, in characters of SPOKEN
-  // text. Roughly 11-12 chars per second at pace 0.95, so 1500 ≈ 2:10 — long
+  // text. Measured at ~11.8 chars per second at pace 0.95, so 1800 ≈ 2:30 — long
   // enough to actually explain something, short enough that a grower standing
   // in a garden will listen to the end. Anything longer than this is summarized
   // for the ear rather than truncated. Hard-capped by Sarvam's own 2500 ceiling.
-  VOICE_MAX_SPOKEN_CHARS: z.coerce.number().min(200).max(2400).default(1500),
+  VOICE_MAX_SPOKEN_CHARS: z.coerce.number().min(200).max(2400).default(1800),
   // Ceiling on the whole build-the-voice-note step (summarize → synthesize →
   // transcode → upload). The text reply waits behind it, so this is the longest
   // the member can be kept waiting for audio before we give up and send text.
