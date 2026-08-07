@@ -25,6 +25,21 @@ import { detectLanguage, type SpokenLanguage } from "./types";
 const SENTENCE_END = /[.!?।॥]/;
 
 /**
+ * Is position `i` a real sentence end, or a full stop inside an abbreviation?
+ *
+ * Replies are full of the second kind — "మి.లీ" (millilitre), "6.5", "19:19:19"
+ * — and treating one as a boundary cuts the voice note mid-word. A genuine
+ * sentence end is followed by whitespace or nothing at all. Caught live: a
+ * summary was trimmed to "...neem oil 5 మి.లీ plus mild soap 1 మి." because the
+ * dot inside the unit read as the end of a sentence.
+ */
+function isSentenceEnd(text: string, i: number): boolean {
+  if (!SENTENCE_END.test(text[i])) return false;
+  const next = text[i + 1];
+  return next === undefined || /\s/.test(next);
+}
+
+/**
  * Don't hand the summarizer an unbounded prompt. Real answers top out around
  * 6k characters; past this something has gone wrong upstream and there is no
  * value in paying to summarize it.
@@ -73,7 +88,7 @@ export function trimToSentence(text: string, limit: number): string {
 
   const window = text.slice(0, limit);
   for (let i = window.length - 1; i >= 0; i--) {
-    if (!SENTENCE_END.test(window[i])) continue;
+    if (!isSentenceEnd(text, i)) continue;
     // Only accept a boundary that leaves a substantial clip — cutting a long
     // answer back to its first sentence because that is the only period in
     // range would lose more than a rough word-boundary cut does.
@@ -173,7 +188,7 @@ export function splitInHalf(text: string): [string, string] {
   // half opens or closes on a fragment.
   for (let offset = 0; offset < text.length / 2; offset++) {
     for (const i of [mid - offset, mid + offset]) {
-      if (i > 0 && i < text.length - 1 && SENTENCE_END.test(text[i])) {
+      if (i > 0 && i < text.length - 1 && isSentenceEnd(text, i)) {
         return [text.slice(0, i + 1).trim(), text.slice(i + 1).trim()];
       }
     }
@@ -231,7 +246,14 @@ async function summarizeInHalves(source: string, speechBudget: number): Promise<
     runPass(summaryPrompt(half, "first"), first, first),
     runPass(summaryPrompt(half, "second"), second, second),
   ]);
-  return `${trimToSentence(a, half)} ${trimToSentence(b, speechBudget - half)}`.trim();
+
+  // Trim the opening first, then hand the SECOND half everything that is left
+  // rather than a fixed half. The tail carries the doses and the safety
+  // warnings, so it is the last thing that should pay for the opening running
+  // long — and the opening reliably does run long.
+  const opening = trimToSentence(a, half);
+  const closing = trimToSentence(b, speechBudget - opening.length - 1);
+  return `${opening} ${closing}`.trim();
 }
 
 export interface SpokenResult {

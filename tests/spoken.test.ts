@@ -302,3 +302,18 @@ describe("buildSpokenText — a broken model must not cost the voice note", () =
     expect(generateText).not.toHaveBeenCalled();
   });
 });
+
+describe("trimToSentence — a full stop inside a unit is not a sentence end", () => {
+  // Caught live: a Telugu summary was cut to "...neem oil 5 మి.లీ plus mild
+  // soap 1 మి." because the dot inside the millilitre abbreviation read as the
+  // end of a sentence.
+  it("does not break inside an abbreviation like మి.లీ", () => {
+    const text = "Spray neem oil 5 మి.లీ per litre now. Then wait seven days before harvest.";
+    expect(trimToSentence(text, 45)).toBe("Spray neem oil 5 మి.లీ per litre now.");
+  });
+
+  it("does not break inside a decimal", () => {
+    const text = "Target pH 6.5 to 7.5 in the pot. Water every three days in summer.";
+    expect(trimToSentence(text, 40)).toBe("Target pH 6.5 to 7.5 in the pot.");
+  });
+});
