@@ -133,7 +133,9 @@ What to leave for the text:
 - Background theory and the "why it works" explanations.
 - Long lists of alternatives — name the best one or two and move on.
 
-Length: aim for about ${Math.round(budget * 0.85)} characters and never exceed ${budget}. If it will not fit, cover fewer points properly rather than all of them badly — a half-said dose is worse than an unsaid one.
+Length: aim for about ${Math.round(budget * 0.85)} characters and never exceed ${budget}.
+
+Cover the answer END TO END. Budget your length across the WHOLE thing before you start writing — the commonest way to get this wrong is to explain the opening sections at full depth, run out of room, and simply stop, leaving the pest doses and the safety instructions at the end unsaid. Those are usually the part the listener most needed. If it will not all fit, compress the EARLIER sections harder and keep going; never drop the tail. Reaching the end of the answer shallowly beats covering the first half of it well. Where you do give a quantity, give it exactly — a half-said dose is worse than an unsaid one.
 
 Do NOT write any closing line about the text message; that is added afterwards. End on a complete sentence.
 

@@ -144,6 +144,17 @@ describe("buildSpokenText — a long reply is summarized, not truncated", () => 
     expect(prompt).toMatch(/never read out numbering, never use bullets/);
     expect(prompt).toMatch(/EXACT quantity, dilution/);
   });
+
+  // Caught live on the VPS: the model summarized front-to-back, ran out of room
+  // at section five, and silently dropped the pest doses and the pre-harvest
+  // interval sitting at the end — the part a grower most needed to hear.
+  it("tells the model to reach the end of the answer rather than stop partway", async () => {
+    generateText.mockResolvedValue("సంక్షిప్త సమాధానం.");
+    await buildSpokenText(longReply());
+    const prompt = generateText.mock.calls[0][0];
+    expect(prompt).toMatch(/Cover the answer END TO END/);
+    expect(prompt).toMatch(/compress the EARLIER sections harder and keep going; never drop the tail/);
+  });
 });
 
 describe("buildSpokenText — the budget is enforced here, not hoped for", () => {
