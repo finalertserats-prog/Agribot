@@ -152,8 +152,8 @@ describe("buildSpokenText — a long reply is summarized, not truncated", () => 
     generateText.mockResolvedValue("సంక్షిప్త సమాధానం.");
     await buildSpokenText(longReply());
     const prompt = generateText.mock.calls[0][0];
-    expect(prompt).toMatch(/Cover the answer END TO END/);
-    expect(prompt).toMatch(/compress the EARLIER sections harder and keep going; never drop the tail/);
+    expect(prompt).toMatch(/write ONE beat for EVERY section/);
+    expect(prompt).toMatch(/Do NOT stop early and do NOT skip the ones at the end/);
   });
 });
 

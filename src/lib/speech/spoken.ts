@@ -133,9 +133,13 @@ What to leave for the text:
 - Background theory and the "why it works" explanations.
 - Long lists of alternatives — name the best one or two and move on.
 
-Length: aim for about ${Math.round(budget * 0.85)} characters and never exceed ${budget}.
+How to work through it — follow this literally:
+- FIRST, before writing anything, count the sections, steps or numbered points in the written answer. Call that number N.
+- You have about ${Math.round(budget * 0.85)} characters in total and must never exceed ${budget}. Divide that by N. That is roughly what each section gets — usually one or two sentences each.
+- Then write ONE beat for EVERY section, in the answer's own order, from the first to the LAST. Every section gets a beat, including the final one.
+- If you are running out of room, make the remaining beats shorter. Do NOT stop early and do NOT skip the ones at the end.
 
-Cover the answer END TO END. Budget your length across the WHOLE thing before you start writing — the commonest way to get this wrong is to explain the opening sections at full depth, run out of room, and simply stop, leaving the pest doses and the safety instructions at the end unsaid. Those are usually the part the listener most needed. If it will not all fit, compress the EARLIER sections harder and keep going; never drop the tail. Reaching the end of the answer shallowly beats covering the first half of it well. Where you do give a quantity, give it exactly — a half-said dose is worse than an unsaid one.
+This matters more than polish. Left to itself a summary explains the opening sections beautifully, runs out of room around the middle, and simply stops — so the pest doses, the spray intervals and the safety warnings that live at the END of the answer are never spoken, and those are usually what the listener most needed. A shallow beat on every section beats a rich account of the first half. Where you do give a quantity, give it exactly — a half-said dose is worse than an unsaid one.
 
 Do NOT write any closing line about the text message; that is added afterwards. End on a complete sentence.
 
