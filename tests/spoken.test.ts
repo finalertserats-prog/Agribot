@@ -93,14 +93,15 @@ describe("buildSpokenText — a short reply is spoken as-is", () => {
     expect(prompt).not.toMatch(/voice note is the briefing/);
   });
 
-  // Telling someone to read on for details they just heard in full teaches them
-  // to ignore the line on the answer where it matters.
-  it("adds no sign-off when nothing was left out", async () => {
+  // The voice note lands BEFORE the text, so the sign-off is not "there is
+  // more" — it is "keep reading, the written answer is arriving underneath".
+  // That holds on every turn, including one spoken in full.
+  it("still signs off when the whole answer was spoken", async () => {
     generateText.mockResolvedValue("మీ tomato లో leaf miner ఉంది.");
     const out = await buildSpokenText("mee tomato lo leaf miner undi.");
 
-    expect(out.summarized).toBe(false);
-    expect(out.text).not.toContain(HANDOFF_TE);
+    expect(out.summarized).toBe(false); // nothing was compressed...
+    expect(out.text).toContain(HANDOFF_TE); // ...but the text still follows
   });
 
   // A written answer is full of headings. Spoken verbatim, "Pruning. Tip prune

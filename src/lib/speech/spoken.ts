@@ -304,12 +304,15 @@ export async function buildSpokenText(reply: string): Promise<SpokenResult> {
   const spoken = trimToSentence(candidate, speechBudget);
   if (!spoken) return { text: "", summarized: false };
 
-  // The sign-off is earned by content the member will NOT hear: either we asked
-  // for a summary, or we had to cut one. A faithful short rewrite gets no
-  // sign-off — telling someone to read on for details they just heard in full
-  // is the kind of small dishonesty that teaches them to ignore the line.
+  // Always sign off, whether or not anything was compressed. The voice note is
+  // sent BEFORE the text, so this line is not really "there is more" — it is
+  // "keep reading, the written answer is landing underneath". That is true on
+  // every turn, and it is the thing that connects the two messages into one
+  // reply instead of two. It was briefly conditional on having summarized, and
+  // once the budget went up to the ceiling most answers stopped summarizing, so
+  // the line all but disappeared from exactly the flow it exists to serve.
   const summarized = needsSummary || overran;
-  const text = summarized ? `${spoken} ${HANDOFF[detectLanguage(spoken)]}` : spoken;
+  const text = `${spoken} ${HANDOFF[detectLanguage(spoken)]}`;
 
   logger.info(
     { summarized, replyChars: reply.length, spokenChars: text.length, budget },
